@@ -43,6 +43,65 @@ debug:
 	pop rbx
 retn
 
+debugy:
+	push rbx
+	push rcx
+	push r8
+	push r9
+	push r10
+	push rax
+	push rsi
+	push rdx
+	push rdi
+
+	mov rax, 1
+	push 0x00000a79
+	lea rsi, [rsp]
+	mov rdx, 2
+	mov rdi, 1
+	syscall
+	add rsp, 8
+	pop rdi
+	pop rdx
+	pop rsi
+	pop rax
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rbx
+retn
+debugn:
+	push rbx
+	push rcx
+	push r8
+	push r9
+	push r10
+	push rax
+	push rsi
+	push rdx
+	push rdi
+
+	mov rax, 1
+	push 0x00000a6e
+	lea rsi, [rsp]
+	mov rdx, 2
+	mov rdi, 1
+	syscall
+	add rsp, 8
+	pop rdi
+	pop rdx
+	pop rsi
+	pop rax
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rbx
+retn
+
+
+
 ft_strlen:
 	xor rax, rax
 	loop:
@@ -119,7 +178,10 @@ famine_file:
 	call open_file
 	mov [rsp], rax;stock fd
 	call check_already_infected ; int check_already_infected(int fd)
+	cmp rax, 0
+	jne leave_famine_file; file is already infected 
 
+	leave_famine_file:
 	mov rax, 3 ; close syscall n.
 	mov rdi, [rsp] ; close(fd)
 	syscall
