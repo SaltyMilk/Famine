@@ -279,7 +279,6 @@ retn
 ; returns a ptr to fd mapped in memory
 map_file:
 	sub rsp, 8; start of file saved for lseek
-
 	push rsi; save fsize
 
 	; First we need to get the file size
@@ -289,7 +288,7 @@ map_file:
 	mov rdx, 1; SEEK_CUR
 	syscall; lseek(fd, 0, SEEK_CUR)
 	
-	mov [rsp], rax; start = lseek(...)
+	mov [rsp + 8], rax; start = lseek(...)
 	mov rax, 8
 	mov rsi, 0
 	mov rdx, 2; SEEK_END
@@ -298,7 +297,7 @@ map_file:
 	mov [rsi], rax; *fsize = lseek(...)
 	
 	push rsi
-	mov rsi, [rsp]
+	mov rsi, [rsp + 8]
 	mov rdx, 0; SEEK_SET
 	mov rax, 8
 	syscall; lseek(fd, start, SEEK_SET) put cursor back at start
