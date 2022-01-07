@@ -10,8 +10,8 @@
 int main()
 {
 	off_t;
-printf("%d\n", SEEK_CUR);
-printf("%d\n",SEEK_END);
-printf("%d\n",SEEK_SET);
 printf("%d\n",MAP_FAILED);
+printf("%d\n", PROT_READ);
+printf("%d\n", MAP_PRIVATE);
+
 }

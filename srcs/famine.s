@@ -304,8 +304,17 @@ map_file:
 	pop rsi; rsi is now fsize again
 	
 	;Time to map the file into memory
-
-
-
+	mov rax, 9; mmap
+	mov r8, rdi; fd
+	mov rdi, 0; NULL
+	mov rdx, 1; PROT_READ
+	mov r10, 2; MAP_PRIVATE
+	mov r9, 0
+	mov rsi, [rsi]; *fsize
+	syscall; mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+	cmp rax, -1
+	jne mmap_no_err
+	mov rax, 0; ret NUlL in case of err
+	mmap_no_err:
 	add rsp, 8
 retn
