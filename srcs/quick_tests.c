@@ -6,12 +6,13 @@
 # include <fcntl.h>
 # include <ar.h>
 # include <stdio.h>
+# include <elf.h>
 
 int main()
 {
-	off_t;
 printf("%d\n",MAP_FAILED);
 printf("%d\n", PROT_READ);
 printf("%d\n", MAP_PRIVATE);
+printf("sz=%d\n", sizeof(Elf32_Ehdr));
 
 }
