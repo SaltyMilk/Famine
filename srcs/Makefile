@@ -23,7 +23,7 @@ all : $(NAME)
 $(NAME) : $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 
-$(OBJ):
+$(OBJ): $(SRC)
 	nasm -felf64 $(SRC)
 
 #%.o: %.s

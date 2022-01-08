@@ -10,9 +10,7 @@
 
 int main()
 {
-printf("%d\n",MAP_FAILED);
-printf("%d\n", PROT_READ);
-printf("%d\n", MAP_PRIVATE);
-printf("sz=%d\n", sizeof(Elf32_Ehdr));
+printf("%d\n", O_RDWR | O_CREAT | O_TRUNC);
+printf("%d\n", S_IRWXO | S_IRWXU | S_IRWXG);
 
 }
