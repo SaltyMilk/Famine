@@ -11,10 +11,10 @@
 # **************************************************************************** #
 
 
-SRC = famine.s
+SRC = famine.asm
 
 CC = ld
-OBJ = $(SRC:.s=.o) 
+OBJ = $(SRC:.asm=.o) 
 
 NAME = Famine
 
@@ -23,9 +23,11 @@ all : $(NAME)
 $(NAME) : $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 
-
-%.o: %.s
+$(OBJ):
 	nasm -felf64 $(SRC)
+
+#%.o: %.s
+#	nasm -felf64 $(SRC)
 
 clean : 
 	rm -f $(OBJ)

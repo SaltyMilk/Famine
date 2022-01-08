@@ -224,7 +224,16 @@ famine_file:
 	; parse MAGIC
 	cmp QWORD [rsp + 12], 52; sizeof(Elf32_Ehdr) == 52, check that fsize > sizeof(Elf32_Ehdr) 
 	jb leave_famine_file
-	
+	xor rax, rax
+	mov rax, QWORD[rsp+4]
+	cmp byte[rax], 0x7f
+	jne leave_famine_file
+	cmp byte[rax + 1], 'E'
+	jne leave_famine_file
+	cmp byte[rax + 2], 'L'
+	jne leave_famine_file
+	cmp byte[rax + 3], 'F'
+	jne leave_famine_file
 	; end parse MAGIC
 	
 	
