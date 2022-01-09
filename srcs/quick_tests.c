@@ -10,7 +10,6 @@
 
 int main()
 {
-printf("%d\n", O_RDWR | O_CREAT | O_TRUNC);
-printf("%d\n", S_IRWXO | S_IRWXU | S_IRWXG);
+printf("%d\n", sizeof(Elf64_Ehdr));
 
 }

