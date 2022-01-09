@@ -10,6 +10,6 @@
 
 int main()
 {
-printf("%d\n", 16 + sizeof(uint16_t) *2 + sizeof(uint32_t));
+printf("%d\n", PT_LOAD);
 
 }
