@@ -10,6 +10,8 @@
 
 int main()
 {
-printf("%d\n", PF_W | PF_R);
+printf("%d\n", sizeof(Elf64_Phdr));
+printf("%d\n", sizeof(Elf64_Ehdr));
+printf("%d\n", sizeof(Elf64_Off));
 
 }

