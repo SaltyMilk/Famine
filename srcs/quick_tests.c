@@ -10,6 +10,6 @@
 
 int main()
 {
-printf("%d\n", PT_LOAD);
+printf("%d\n", PF_W | PF_R);
 
 }

