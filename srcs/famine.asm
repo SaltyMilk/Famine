@@ -517,7 +517,7 @@ find_new_entry:
 		jne continue_fne
 		;we found the data segment ! bss ect... This is where the shellcode will be
 		mov rax, QWORD[r9 + 40];store p_memsz
-		add rax, QWORD[r9 + 8]; add p_offset so this gives us "the end" of the segment
+		add rax, QWORD[r9 + 16]; add p_offset so this gives us "the end" of the segment
 		continue_fne:
 		inc rcx
 		add rdx, 56; rdx += sizeof(Elf64_Phdr)
