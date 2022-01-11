@@ -462,7 +462,8 @@ parse64elfheader:
 	syscall; write(wfd, file, sizeof(Elf64_Ehdr));
 	;Time to handle the entrypoint
 	pop rax
-	mov QWORD[rsp], rax; change by rax after calling func to find new entry
+;	add rax, 4096; BLACK MAGIC
+	mov QWORD[rsp], rax;
 	add rsi, 32 ; points right after the entrypoint
 	mov rbx, rsi ; store rsi void *file+32
 	mov rsi, rsp
