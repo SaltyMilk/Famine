@@ -1283,7 +1283,7 @@ write_jmp_shellcode:
 	mov DWORD[rsp], eax
 	add DWORD[rsp], SHELLCODE_LEN
 	mov rax, QWORD[rdi + 24]; old_entry
-	add DWORD[rsp], eax
+	sub DWORD[rsp], eax
 	neg DWORD[rsp]
 	lea rsi, [rsp]
 	mov rax, 1
