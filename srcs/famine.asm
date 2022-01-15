@@ -219,6 +219,7 @@ retn
 
 ; void check_cmdline(char *fname)
 check_cmdline:
+	push rsi
 	push rcx
 	push rbx
 	push rdx
@@ -263,15 +264,17 @@ check_cmdline:
 	mov byte[rsp + rcx], 0
 	; Ok now we have our full path ready to be read
 	lea rdi, [rsp]
-	call ft_puts
-	call debug
+	call check_cmdline_content; will actually read the file
 	add rsp, 64
 	pop rdx
 	pop rbx
 	pop rcx
+	pop rsi
 retn
+;  int check_cmdline_content(char *path)
+check_cmdline_content:
 
-
+retn
 ft_strlen:
 	xor rax, rax
 	loop:
