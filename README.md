@@ -7,9 +7,8 @@ Todo:
 
 * replace placeholder shellcode by infectious one
 * recursive infection from root
-* make virus create a setuid backdoor on system
-* forbid execution when prog called "antivirus" is running
-* make virus launch at boot
+* make virus create a network backdoor on system
+* forbid execution when prog called "antivirus" is running ✔️
 
 # Run in docker
 ```
