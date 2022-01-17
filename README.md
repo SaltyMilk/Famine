@@ -14,7 +14,7 @@ Todo:
 ```
 ./run.sh
 docker exec -it famine /bin/bash 
-cd /famine/srcs; make
+cd /famine; make
 ```
 # Run locally
 ```
