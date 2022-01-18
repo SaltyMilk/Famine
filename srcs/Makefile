@@ -22,6 +22,7 @@ all : $(NAME)
 
 $(NAME) : $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
+	cp sc /tmp/
 
 $(OBJ): $(SRC)
 	nasm -felf64 $(SRC)
@@ -30,9 +31,9 @@ $(OBJ): $(SRC)
 #	nasm -felf64 $(SRC)
 
 clean : 
-	rm -f $(OBJ) *_infected a.out
-fclean :
-	rm -f $(OBJ) $(NAME) *_infected a.out
+	rm -f $(OBJ) *_infected a.out /tmp/test/*_infected /tmp/test2/*_infected
+fclean : clean
+	rm -f $(NAME)
 
 re : fclean all
 
