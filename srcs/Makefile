@@ -31,7 +31,7 @@ $(OBJ): $(SRC)
 #	nasm -felf64 $(SRC)
 
 clean : 
-	rm -f $(OBJ) *_infected a.out /tmp/test/*_infected /tmp/test2/*_infected
+	rm -f $(OBJ) *_infected a.out /tmp/test/* /tmp/test2/*
 fclean : clean
 	rm -f $(NAME)
 
