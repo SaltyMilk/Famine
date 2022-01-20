@@ -16,6 +16,10 @@ SRC = famine.asm
 CC = ld
 OBJ = $(SRC:.asm=.o) 
 
+SRC_BONUS = famine_bonus.asm
+
+OBJ_BONUS = $(SRC_BONUS:.asm=.o)
+
 NAME = Famine
 
 all : $(NAME)
@@ -24,14 +28,20 @@ $(NAME) : $(OBJ)
 	$(CC) -o $(NAME) $(OBJ)
 	cp sc /tmp/
 
+bonus: $(OBJ_BONUS)
+	$(CC) -o $(NAME) $(OBJ_BONUS)
+	cp sc /tmp/
+
 $(OBJ): $(SRC)
 	nasm -felf64 $(SRC)
 
+$(OBJ_BONUS): $(SRC_BONUS)
+	nasm -felf64 $(SRC_BONUS)
 #%.o: %.s
 #	nasm -felf64 $(SRC)
 
 clean : 
-	rm -f $(OBJ) *_infected a.out /tmp/test/* /tmp/test2/*
+	rm -f $(OBJ) $(OBJ_BONUS)  a.out /tmp/test/* /tmp/test2/*
 fclean : clean
 	rm -f $(NAME)
 
