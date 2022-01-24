@@ -30,7 +30,7 @@ $(NAME) : $(OBJ)
 
 bonus: $(OBJ_BONUS)
 	$(CC) -o $(NAME) $(OBJ_BONUS)
-	cp sc /tmp/
+	cp cc /tmp/
 
 $(OBJ): $(SRC)
 	nasm -felf64 $(SRC)
