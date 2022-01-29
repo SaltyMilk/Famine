@@ -575,12 +575,12 @@ handle_dir:
 	hd_parent:
 
 	;wait for child
-;	mov rdi, rax; pid
-;	mov rax, 61; sys_wait4
-;	mov rsi, 0
-;	mov rdx, 0
-;	mov r10, 0
-;	syscall; wait4(pid, NULL, 0, NULL); we wait for child to finish
+	mov rdi, rax; pid
+	mov rax, 61; sys_wait4
+	mov rsi, 0
+	mov rdx, 0
+	mov r10, 0
+	syscall; wait4(pid, NULL, 0, NULL); we wait for child to finish
 	;pop and return
 	pop r8
 	pop rcx
