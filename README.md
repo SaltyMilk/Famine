@@ -23,10 +23,10 @@ So when ls gets infected every time you'll do a "ls", you're infecting your whol
 
 # Todo: 
 
-* replace placeholder shellcode by infectious one ✔️
-* recursive infection from root
-* make virus create a network backdoor on system ✔️
-* forbid execution when prog called "antivirus" is running ✔️
+* replace placeholder shellcode by infectious one ✅
+* recursive infection from root ✅
+* make virus create a network backdoor on system ✅
+* forbid execution when prog called "antivirus" is running ✅
 
 # Run in docker
 ```
